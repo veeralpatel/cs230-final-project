@@ -33,8 +33,8 @@ dis_batch_size = 64
 #  Basic Training Parameters
 #########################################################################################
 TOTAL_BATCH = 200
-positive_file = 'save/real_data.txt'
-negative_file = 'save/generator_sample.txt'
+positive_file = '../positive.txt'
+negative_file = '../negative.txt'
 eval_file = 'save/eval_file.txt'
 generated_num = 10000
 
@@ -103,6 +103,7 @@ def main():
     # First, use the oracle model to provide the positive examples, which are sampled from the oracle data distribution
     generate_samples(sess, target_lstm, BATCH_SIZE, generated_num, positive_file)
     gen_data_loader.create_batches(positive_file)
+    saver = tf.train.Saver()
 
     log = open('save/experiment-log.txt', 'w')
     #  pre-train generator
@@ -121,7 +122,6 @@ def main():
     print 'Start pre-training discriminator...'
     # Train 3 epoch on the generated data and do this for 50 times
     for _ in range(50):
-        generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
         dis_data_loader.load_train_data(positive_file, negative_file)
         for _ in range(3):
             dis_data_loader.reset_pointer()
@@ -133,6 +133,8 @@ def main():
                     discriminator.dropout_keep_prob: dis_dropout_keep_prob
                 }
                 _ = sess.run(discriminator.train_op, feed)
+
+    save_path = saver.save(sess, "discriminator.ckpt")
 
     rollout = ROLLOUT(generator, 0.8)
 
