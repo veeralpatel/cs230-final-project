@@ -9,13 +9,17 @@ import nn_tools
 class Discriminator:
     def __init__(self, hparams):
         """
-        Assume that hparams contains: filter_sizes, num_filters, fully_connected_size,
-            learning_rate, num_epochs, minibatch_size
+        Assumes that hparams contains all of the following parameters
         """
+        #Input Data Params
+        self.seq_length = hparams["seq_length"]   # expected number of tokens per review
+        self.embedding_size = hparams["embedding_size"]
+        self.vocab_size = hparams["vocab_size"]
+        #Network params:
         self.filter_sizes = hparams["filter_sizes"]
         self.num_filters = hparams["num_filters"]
         self.fully_connected_size = hparams["fully_connected_size"] # number of neurons in fully connected layer
-
+        #Training params:
         self.learning_rate = hparams["learning_rate"]
         self.num_epochs = hparams["num_epochs"]
         self.minibatch_size = hparams["minibatch_size"]
@@ -27,12 +31,10 @@ class Discriminator:
     def train(self, X_train, Y_train, X_test, Y_test):
         ops.reset_default_graph()
 
-        (self.m, self.n_H0, self.n_W0) = X_train.shape
-
         #self.basic_test()
         self.initialize_parameters()
-        Z4 = self.forward_propagation(self.X, self.params)
-        cost = self.compute_cost(Z4, self.Y)
+        Z4 = self.forward_propagation()
+        cost = self.compute_cost(Z4)
         optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cost)
 
         init = tf.global_variables_initializer()
@@ -68,7 +70,6 @@ class Discriminator:
 
 
     def report_accuracy(self, Z4, X_train, Y_train, X_test, Y_test):
-
         correct_prediction = tf.equal(tf.argmax(Z4, 1), tf.argmax(self.Y, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         print("Accuracy:", accuracy)
@@ -87,48 +88,61 @@ class Discriminator:
         *TODO: Try different initializations
         """
 
-
-        self.X = tf.placeholder(tf.float32, [None, self.n_H0, self.n_W0, 1], name="X")
+        self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
         self.Y = tf.placeholder(tf.float32, [None, 2], name="Y")
 
+        #Embedding Layer
+        W0 = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0),
+                    name="W0")
+        self.params["W0"] = W0
+
+        #Convolutional Layers
         for i, (filter_size, num_filter) in enumerate(zip(self.filter_sizes, self.num_filters)):
-            W_name = "W" + str(i)
-            self.params[W_name] = tf.get_variable(W_name, [filter_size, self.n_W0, 1, num_filter],
+            W_name = "W" + str(i+1)
+            self.params[W_name] = tf.get_variable(W_name, [filter_size, self.embedding_size, 1, num_filter],
                                                     initializer=tf.initializers.truncated_normal(stddev=0.1))
 
-    def forward_propagation(self, X, parameters):
+    def forward_propagation(self):
         """
         Architecture:
-            - [f = 1] conv -> relu -> max pool
-            - [ ... ]
-            - [f = 20] conv -> relu -> max pool
+        X -> embedding
+            ----------> [f = 1] conv -> relu -> max pool
+            ----------> [ ... ]
+            ----------> [f =20] conv -> relu -> max pool
 
-            ------- All pooled outputs -------> fully connected -> single neuron -> output
+            ----------- All pooled outputs ------------> fully connected -> 2 neurons -> softmax output
         """
-        pools = []
-        for i in range(len(self.num_filters)):
-            W = self.params["W" + str(i)]
+        #Embedding Layer
+        W0 = self.params["W0"]
+        embedded_chars = tf.nn.embedding_lookup(W0, self.X)
+        embedded_chars_expanded = tf.expand_dims(embedded_chars, -1)
 
-            Z = tf.nn.conv2d(X, W, strides=[1,1,1,1], padding='VALID')
+        #Convolutional Layers
+        pooled = []
+        for i in range(len(self.num_filters)):
+            W = self.params["W" + str(i+1)]
+
+            Z = tf.nn.conv2d(embedded_chars_expanded, W, strides=[1,1,1,1], padding='VALID')
+            print(Z)
             A = tf.nn.relu(Z)
-            P = tf.nn.max_pool(A, ksize=[1, self.n_H0 - self.filter_sizes[i] + 1, 1, 1],
+            P = tf.nn.max_pool(A, ksize=[1, self.seq_length - self.filter_sizes[i] + 1, 1, 1],
                                     strides=[1,1,1,1],
                                     padding='VALID')
-            pools.append(P)
+            pooled.append(P)
 
         num_filters_total = sum(self.num_filters)
-        full_pool = tf.concat(pools, 3)
+        full_pool = tf.concat(pooled, 3)
         flat_pool = tf.reshape(full_pool, [-1, num_filters_total])
 
         Z3 = tf.contrib.layers.fully_connected(flat_pool, self.fully_connected_size, activation_fn=tf.nn.relu)
-        Z4 = tf.contrib.layers.fully_connected(Z3, 1, activation_fn=None)
+        Z4 = tf.contrib.layers.fully_connected(Z3, 2, activation_fn=None)
         return Z4
 
-    def compute_cost(self, Z4, Y):
+    def compute_cost(self, Z4):
         """
         Sigmoid activation & cross entropy loss, averaged over examples
         """
-        cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=Z4, labels=Y))
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=Z4, labels=self.Y))
         return cost
 
     def basic_test(self):
@@ -137,25 +151,31 @@ class Discriminator:
         """
         with tf.Session() as sess:
             self.initialize_parameters()
-            Z4 = self.forward_propagation(self.X, self.params)
-            cost = self.compute_cost(Z4, self.Y)
+            Z4 = self.forward_propagation()
+            cost = self.compute_cost(Z4)
 
             init = tf.global_variables_initializer()
             sess.run(init)
-            a = sess.run(Z4, {self.X: np.random.randn(10,4,4,1)})
-            cost = sess.run(cost, {self.X: np.random.randn(10,4,4,1), self.Y: np.random.randn(10,2)})
+
+            X_sample = np.random.randint(self.vocab_size, size=(5,self.seq_length))
+            a = sess.run(Z4, {self.X: X_sample})
             print("Z4 = " + str(a))
+
+            cost = sess.run(cost, {self.X: X_sample, self.Y: np.random.randn(5,2)})
             print("cost = " + str(cost))
 
 
 hparams = {
+            "seq_length": 10,
+            "embedding_size": 5,
+            "vocab_size": 100,
             "filter_sizes": [1, 2],
             "num_filters": [1, 2],
-            "fully_connected_size": 10,
+            "fully_connected_size": 5,
             "learning_rate": 1e-5,
-            ""
+            "num_epochs": 100,
+            "minibatch_size": 500
           }
 
 D = Discriminator(hparams)
-
 D.basic_test()
