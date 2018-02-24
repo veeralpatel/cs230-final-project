@@ -182,12 +182,11 @@ D = Discriminator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 Y = pickle.load(open('train_y.pkl', 'rb'))
 
-X_train = X
-X_test = X_train[0:100]
+X_train = X[:288700]
+X_test = X_train[:288700]
 
-Y_train = Y
-Y_test = Y_train[0:100]
+Y_train = Y[:288700]
+Y_test = Y[288700:]
 
 D.train(X_train, Y_train, X_test, Y_test, hparams)
 
-print (X_train.shape, Y_train.shape)
