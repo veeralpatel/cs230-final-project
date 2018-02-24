@@ -182,6 +182,11 @@ D = Discriminator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 Y = pickle.load(open('train_y.pkl', 'rb'))
 
+m = X.shape[0]
+permutation = list(np.random.permutation(m))
+X = X[permutation, :]
+Y = Y[permutation, :].reshape((m,2))
+
 X_train = X[:288700]
 X_test = X[288700:]
 
