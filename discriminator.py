@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.python.framework import ops
+from sklearn.cross_validation import train_test_split
 
 import nn_tools
 
@@ -29,7 +30,7 @@ class Discriminator:
 
         self.params = {}
 
-    def train(self, X_train, Y_train, X_test, Y_test):
+    def train(self, X_train, Y_train, X_test, Y_test, hparams):
         ops.reset_default_graph()
 
         self.initialize_parameters()
@@ -41,12 +42,14 @@ class Discriminator:
         costs = []
         seed = 1
 
+        m = X_train.shape[0]
+
         with tf.Session() as sess:
             sess.run(init)
 
             for epoch in range(self.num_epochs):
                 minibatch_cost = 0.
-                num_minibatches = (m / self.minibatch_size)
+                num_minibatches = int(m / self.minibatch_size)
                 seed += 1
                 minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
 
@@ -62,7 +65,7 @@ class Discriminator:
             plt.plot(np.squeeze(costs))
             plt.ylabel('cost')
             plt.xlabel('iterations (per tens)')
-            plt.title("Learning rate =" + str(learning_rate))
+            plt.title("Learning rate =" + str(hparams['learning_rate']))
             plt.show()
 
             return self.report_accuracy(Z4, X_train, Y_train, X_test, Y_test)
@@ -164,9 +167,9 @@ class Discriminator:
 
 
 hparams = {
-            "seq_length": 10,
+            "seq_length": 30,
             "embedding_size": 5,
-            "vocab_size": 100,
+            "vocab_size": 5002,
             "filter_sizes": [1, 2],
             "num_filters": [1, 2],
             "fully_connected_size": 5,
@@ -176,8 +179,15 @@ hparams = {
           }
 
 D = Discriminator(hparams)
+X = pickle.load(open('train_x.pkl', 'rb'))
+Y = pickle.load(open('train_y.pkl', 'rb'))
 
-X_train = pickle.load(open('train_x.pkl', 'rb'))
-Y_train = pickle.load(open('train_y.pkl', 'rb'))
+X_train = X
+X_test = X_train[0:100]
+
+Y_train = Y
+Y_test = Y_train[0:100]
+
+D.train(X_train, Y_train, X_test, Y_test, hparams)
 
 print (X_train.shape, Y_train.shape)
