@@ -183,7 +183,7 @@ X = pickle.load(open('train_x.pkl', 'rb'))
 Y = pickle.load(open('train_y.pkl', 'rb'))
 
 X_train = X[:288700]
-X_test = X_train[:288700]
+X_test = X[288700:]
 
 Y_train = Y[:288700]
 Y_test = Y[288700:]
