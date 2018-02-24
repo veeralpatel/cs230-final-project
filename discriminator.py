@@ -1,4 +1,5 @@
 import math
+import pickle
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -31,7 +32,6 @@ class Discriminator:
     def train(self, X_train, Y_train, X_test, Y_test):
         ops.reset_default_graph()
 
-        #self.basic_test()
         self.initialize_parameters()
         Z4 = self.forward_propagation()
         cost = self.compute_cost(Z4)
@@ -53,7 +53,6 @@ class Discriminator:
                 for minibatch in minibatches:
                     (minibatch_X, minibatch_Y) = minibatch
                     _, temp_cost = sess.run([optimizer, cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
-
                     minibatch_cost += temp_cost / num_minibatches
 
                 if epoch % 10 == 0:
@@ -123,7 +122,6 @@ class Discriminator:
             W = self.params["W" + str(i+1)]
 
             Z = tf.nn.conv2d(embedded_chars_expanded, W, strides=[1,1,1,1], padding='VALID')
-            print(Z)
             A = tf.nn.relu(Z)
             P = tf.nn.max_pool(A, ksize=[1, self.seq_length - self.filter_sizes[i] + 1, 1, 1],
                                     strides=[1,1,1,1],
@@ -178,4 +176,8 @@ hparams = {
           }
 
 D = Discriminator(hparams)
-D.basic_test()
+
+X_train = pickle.load(open('train_x.pkl', 'rb'))
+Y_train = pickle.load(open('train_y.pkl', 'rb'))
+
+print (X_train.shape, Y_train.shape)

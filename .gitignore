@@ -1,3 +1,5 @@
 yelp_review.csv
 positive.txt
 negative.txt
+train_x.pkl
+train_y.pkl
