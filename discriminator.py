@@ -40,13 +40,14 @@ class Discriminator:
         init = tf.global_variables_initializer()
         costs = []
         seed = 1
+        m = X_train.shape[0]
 
         with tf.Session() as sess:
             sess.run(init)
 
             for epoch in range(self.num_epochs):
                 minibatch_cost = 0.
-                num_minibatches = (m / self.minibatch_size)
+                num_minibatches = int(m / self.minibatch_size)
                 seed += 1
                 minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
 
@@ -177,7 +178,11 @@ hparams = {
 
 D = Discriminator(hparams)
 
-X_train = pickle.load(open('train_x.pkl', 'rb'))
-Y_train = pickle.load(open('train_y.pkl', 'rb'))
 
-print (X_train.shape, Y_train.shape)
+X_train = np.random.randint(100, size=(3000, 10))
+Y_train = np.random.randint(1, size=(3000, 2))
+X_test = X_train[:100]
+Y_test = Y_train[:100]
+
+
+D.train(X_train, Y_train, X_test, Y_test)
