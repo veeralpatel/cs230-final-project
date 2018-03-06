@@ -3,3 +3,11 @@ positive.txt
 negative.txt
 train_y.pkl
 train_x.pkl
+chicago_data.csv
+chicago_meta.txt
+chicago_reviews.txt
+negative_trimmed.txt
+negative_trimmed_id.txt
+nyc_data.csv
+positive_trimmed.txt
+*.pyc

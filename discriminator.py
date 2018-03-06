@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.python.framework import ops
+from sklearn.cross_validation import train_test_split
 
 import nn_tools
 
@@ -29,7 +30,7 @@ class Discriminator:
 
         self.params = {}
 
-    def train(self, X_train, Y_train, X_test, Y_test):
+    def train(self, X_train, Y_train, X_test, Y_test, hparams):
         ops.reset_default_graph()
 
         self.initialize_parameters()
@@ -40,6 +41,8 @@ class Discriminator:
         init = tf.global_variables_initializer()
         costs = []
         seed = 1
+        m = X_train.shape[0]
+
         m = X_train.shape[0]
 
         with tf.Session() as sess:
@@ -63,7 +66,7 @@ class Discriminator:
             plt.plot(np.squeeze(costs))
             plt.ylabel('cost')
             plt.xlabel('iterations (per tens)')
-            plt.title("Learning rate =" + str(learning_rate))
+            plt.title("Learning rate =" + str(hparams['learning_rate']))
             plt.show()
 
             return self.report_accuracy(Z4, X_train, Y_train, X_test, Y_test)
@@ -165,9 +168,9 @@ class Discriminator:
 
 
 hparams = {
-            "seq_length": 10,
+            "seq_length": 30,
             "embedding_size": 5,
-            "vocab_size": 100,
+            "vocab_size": 5002,
             "filter_sizes": [1, 2],
             "num_filters": [1, 2],
             "fully_connected_size": 5,
@@ -177,12 +180,18 @@ hparams = {
           }
 
 D = Discriminator(hparams)
+X = pickle.load(open('train_x.pkl', 'rb'))
+Y = pickle.load(open('train_y.pkl', 'rb'))
 
+m = X.shape[0]
+permutation = list(np.random.permutation(m))
+X = X[permutation, :]
+Y = Y[permutation, :].reshape((m,2))
 
-X_train = np.random.randint(100, size=(3000, 10))
-Y_train = np.random.randint(1, size=(3000, 2))
-X_test = X_train[:100]
-Y_test = Y_train[:100]
+X_train = X[:288700]
+X_test = X[288700:]
 
+Y_train = Y[:288700]
+Y_test = Y[288700:]
 
-D.train(X_train, Y_train, X_test, Y_test)
+D.train(X_train, Y_train, X_test, Y_test, hparams)
