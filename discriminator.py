@@ -30,23 +30,22 @@ class Discriminator:
 
         self.params = {}
 
-    def train(self, X_train, Y_train, X_test, Y_test, hparams):
-        ops.reset_default_graph()
+    def train(self, X_train, Y_train, X_test, Y_test, hparams, restart=True):
+        if restart:
+            ops.reset_default_graph()
+            self.initialize_parameters()
+            self.Z4 = self.forward_propagation()
+            self.cost = self.compute_cost()
+            self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+            self.init = tf.global_variables_initializer()
 
-        self.initialize_parameters()
-        Z4 = self.forward_propagation()
-        cost = self.compute_cost(Z4)
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cost)
-
-        init = tf.global_variables_initializer()
         costs = []
         seed = 1
         m = X_train.shape[0]
 
-        m = X_train.shape[0]
-
         with tf.Session() as sess:
-            sess.run(init)
+            if restart:
+                sess.run(self.init)
 
             for epoch in range(self.num_epochs):
                 minibatch_cost = 0.
@@ -56,7 +55,7 @@ class Discriminator:
 
                 for minibatch in minibatches:
                     (minibatch_X, minibatch_Y) = minibatch
-                    _, temp_cost = sess.run([optimizer, cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
+                    _, temp_cost = sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
                     minibatch_cost += temp_cost / num_minibatches
 
                 if epoch % 10 == 0:
@@ -69,11 +68,15 @@ class Discriminator:
             plt.title("Learning rate =" + str(hparams['learning_rate']))
             plt.show()
 
-            return self.report_accuracy(Z4, X_train, Y_train, X_test, Y_test)
+            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
+    def predict(self, X):
+        prediction = tf.nn.softmax(self.Z4)
+        y_hat = sess.run(prediction, {self.X: X_sample})
+        return y_hat
 
-    def report_accuracy(self, Z4, X_train, Y_train, X_test, Y_test):
-        correct_prediction = tf.equal(tf.argmax(Z4, 1), tf.argmax(self.Y, 1))
+    def report_accuracy(self, X_train, Y_train, X_test, Y_test):
+        correct_prediction = tf.equal(tf.argmax(self.Z4, 1), tf.argmax(self.Y, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         print("Accuracy:", accuracy)
 
@@ -140,11 +143,11 @@ class Discriminator:
         Z4 = tf.contrib.layers.fully_connected(Z3, 2, activation_fn=None)
         return Z4
 
-    def compute_cost(self, Z4):
+    def compute_cost(self):
         """
         Sigmoid activation & cross entropy loss, averaged over examples
         """
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=Z4, labels=self.Y))
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.Z4, labels=self.Y))
         return cost
 
     def basic_test(self):
