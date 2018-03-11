@@ -43,36 +43,37 @@ class Discriminator:
         seed = 1
         m = X_train.shape[0]
 
-        with tf.Session() as sess:
-            if restart:
-                sess.run(self.init)
+        self.sess = tf.Session()
 
-            for epoch in range(self.num_epochs):
-                minibatch_cost = 0.
-                num_minibatches = int(m / self.minibatch_size)
-                seed += 1
-                minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
+        if restart:
+            self.sess.run(self.init)
 
-                for minibatch in minibatches:
-                    (minibatch_X, minibatch_Y) = minibatch
-                    _, temp_cost = sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
-                    minibatch_cost += temp_cost / num_minibatches
+        for epoch in range(self.num_epochs):
+            minibatch_cost = 0.
+            num_minibatches = int(m / self.minibatch_size)
+            seed += 1
+            minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
 
-                if epoch % 10 == 0:
-                    print("Cost after epoch", epoch, ":", minibatch_cost)
-                costs.append(minibatch_cost)
+            for minibatch in minibatches:
+                (minibatch_X, minibatch_Y) = minibatch
+                _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
+                minibatch_cost += temp_cost / num_minibatches
 
-            plt.plot(np.squeeze(costs))
-            plt.ylabel('cost')
-            plt.xlabel('iterations (per tens)')
-            plt.title("Learning rate =" + str(hparams['learning_rate']))
-            plt.show()
+            if epoch % 10 == 0:
+                print("Cost after epoch", epoch, ":", minibatch_cost)
+            costs.append(minibatch_cost)
 
-            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
+        plt.plot(np.squeeze(costs))
+        plt.ylabel('cost')
+        plt.xlabel('iterations (per tens)')
+        plt.title("Learning rate =" + str(hparams['learning_rate']))
+        plt.show()
 
-    def predict(self, X):
+        return self.report_accuracy(X_train, Y_train, X_test, Y_test)
+
+    def predict(self, X_sample):        
         prediction = tf.nn.softmax(self.Z4)
-        y_hat = sess.run(prediction, {self.X: X_sample})
+        y_hat = self.sess.run(prediction, {self.X: X_sample})
         return y_hat
 
     def report_accuracy(self, X_train, Y_train, X_test, Y_test):
@@ -80,8 +81,8 @@ class Discriminator:
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         print("Accuracy:", accuracy)
 
-        train_accuracy = accuracy.eval({self.X: X_train, self.Y: Y_train})
-        test_accuracy = accuracy.eval({self.X: X_test, self.Y: Y_test})
+        train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
+        test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
         print("Train Accuracy:", train_accuracy)
         print("Test Accuracy:", test_accuracy)
 
@@ -198,3 +199,8 @@ Y_train = Y[:288700]
 Y_test = Y[288700:]
 
 D.train(X_train, Y_train, X_test, Y_test, hparams)
+
+print('Inputing')
+print(X[288702])
+print D.predict([X[288702]])
+
