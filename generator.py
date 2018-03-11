@@ -19,6 +19,16 @@ class Generator:
         #Training params
         self.learning_rate = hparams["learning_rate"]
 
+    def one_hot(self):
+        X = pickle.load(open('train_x.pkl', 'rb'))
+        one_hot_everything = []
+        for array in X:
+            one_hot_matrix = np.zeros((30,5002))
+            for i,number in enumerate(array):
+                one_hot_matrix[i][number] = 1
+            one_hot_everything.append(one_hot_matrix)
+        return one_hot_everything
+
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [self.seq_length, None, self.embedding_size], name="X")
         self.Y = tf.placeholder(tf.float32, [self.seq_length, None, self.vocab_size], name="Y")
