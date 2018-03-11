@@ -16,27 +16,57 @@ class Generator:
         #Model params
         self.num_units = hparams["num_units"]
         self.activation = hparams["activation"]
+        #Training params
+        self.learning_rate = hparams["learning_rate"]
 
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [self.seq_length, None, self.embedding_size], name="X")
-        self.Y = tf.placeholder(tf.float32, [self.seq_length, None, self.embedding_size], name="Y")
+        self.Y = tf.placeholder(tf.float32, [self.seq_length, None, self.vocab_size], name="Y")
 
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
     def forward_propagation(self):
-        return tf.nn.dynamic_rnn(self.lstm, self.X)
+        m = tf.shape(self.X)[1]
+        initial_state = tf.zeros([m, lstm.state_size])
+        state = initial_state
+
+        outputs = []
+
+        for t in range(self.seq_length):
+            output, state = self.lstm(self.X[t, : , :])
+            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            outputs.append(z)
+
+        return tf.stack(outputs)
+
+    def compute_cost(self):
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.Y))
+        return cost
 
     def train(self, X_train, Y_train, X_test, Y_test):
         self.initialize_parameters()
-        outputs, state = self.forward_propagation()
+        self.out = self.forward_propagation()
+        self.cost = self.compute_cost()
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
+        self.init = global_variables_initializer()
+        self.sess = tf.Session()
 
+        for epoch in range(self.num_epochs):
+            minibatch_cost = 0.
+            num_minibatches = int(m / self.minibatch_size)
+            seed += 1
+            minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
+
+            for minibatch in minibatches:
+                (minibatch_X, minibatch_Y) = minibatch
+                _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
+                minibatch_cost += temp_cost / num_minibatches
+
+            costs.append(minibatch_cost)
+
+        return costs
 
     def get_reward(self, X, discriminator):
         #TODO
         reward = discriminator.predict(X)
-
-
-#Input some random start state -> get next token
-#   - then rollout, sample 100 different next tokens * get reward
-#   -
