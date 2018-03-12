@@ -70,6 +70,7 @@ class Generator:
         self.sess = tf.Session()
 
         with tf.device('/gpu:0'):
+
             costs = []
             seed = 1
             self.sess.run(self.init)
@@ -117,19 +118,19 @@ hparams = {
     "vocab_size": 5002,
     "num_units": 100,
     "learning_rate": 1e-5,
-    "num_epochs": 10,
-    "minibatch_size": 100
+    "num_epochs": 100,
+    "minibatch_size": 500
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:500]
-X_test = X[500:1000]
+X_train = X[:5000]
+X_test = X[5000:10000]
 
 Y = G.one_hot(X_train)
 
-Y_train = Y[:500]
-Y_test = Y[500:1000]
+Y_train = Y[:5000]
+Y_test = Y[5000:10000]
 
 G.train(X_train, Y_train, X_test, Y_test)
