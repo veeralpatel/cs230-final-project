@@ -69,28 +69,30 @@ class Generator:
         self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
-        costs = []
-        seed = 1
-        self.sess.run(self.init)
+        with tf.device('/gpu:0')
 
-        print("Starting training")
-        for epoch in range(self.num_epochs):
-            minibatch_cost = 0.
-            seed += 1
-            minibatches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
-            num_minibatches = len(minibatches)
-            print("Starting epoch " + str(epoch))
-            for minibatch in minibatches:
-                (minibatch_X, minibatch_Y) = minibatch
-                _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
-                minibatch_cost += temp_cost / num_minibatches
+            costs = []
+            seed = 1
+            self.sess.run(self.init)
 
-            if epoch % 2 == 0:
-                print("Cost after epoch", epoch, ":", minibatch_cost)
+            print("Starting training")
+            for epoch in range(self.num_epochs):
+                minibatch_cost = 0.
+                seed += 1
+                minibatches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
+                num_minibatches = len(minibatches)
+                print("Starting epoch " + str(epoch))
+                for minibatch in minibatches:
+                    (minibatch_X, minibatch_Y) = minibatch
+                    _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
+                    minibatch_cost += temp_cost / num_minibatches
 
-            costs.append(minibatch_cost)
+                if epoch % 2 == 0:
+                    print("Cost after epoch", epoch, ":", minibatch_cost)
 
-        return costs
+                costs.append(minibatch_cost)
+
+            return costs
 
     def update(self, initial_state):
         pass
