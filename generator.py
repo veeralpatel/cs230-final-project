@@ -57,6 +57,10 @@ class Generator:
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=labels))
         return cost
 
+
+    def rollout(self):
+        #define rollout
+
     def train(self, X_train, Y_train, X_test, Y_test):
         self.initialize_parameters()
         self.out = self.forward_propagation()
@@ -92,6 +96,17 @@ class Generator:
             costs.append(minibatch_cost)
 
         return costs
+
+    def update(self, initial_state, ):
+        numpy_state = initial_state.eval()
+
+        total_loss = 0.0
+        for current_batch_of_words in words_in_dataset:
+            numpy_state, current_loss = session.run([final_state, loss],
+            # Initialize the LSTM state from the previous iteration.
+            feed_dict={initial_state: numpy_state, words: current_batch_of_words})
+    
+        total_loss += current_loss
 
     def get_reward(self, X, discriminator):
         #TODO
