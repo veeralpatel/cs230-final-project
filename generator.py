@@ -69,7 +69,7 @@ class Generator:
         self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
-        with tf.device('/gpu:0')
+        with tf.device('/gpu:0'):
 
             costs = []
             seed = 1
