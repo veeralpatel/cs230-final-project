@@ -31,7 +31,7 @@ class Generator:
 
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
-        self.Y = tf.placeholder(tf.int32, [None, self.seq_length, self.vocab_size], name="Y")
+        self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
@@ -69,8 +69,7 @@ class Generator:
         self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
-        with tf.device('/gpu:0')
-
+        with tf.device('/gpu:0'):
             costs = []
             seed = 1
             self.sess.run(self.init)
