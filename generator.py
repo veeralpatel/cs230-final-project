@@ -25,7 +25,7 @@ class Generator:
         m = X.shape[0]
         one_hot_everything = np.zeros((m, 30, 5002))
         for m, array in enumerate(X):
-            for i,number in enumerate(array):
+            for i, number in enumerate(array):
                 one_hot_everything[m][i][number] = 1
         return one_hot_everything
 
@@ -36,9 +36,9 @@ class Generator:
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
     def forward_propagation(self):
-        m = tf.shape(self.X)[1]
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X = tf.transpose(embedded_words, perm=(1,0,2))
+        m = tf.shape(X)[1]
 
         c_state = tf.zeros([m, self.lstm.state_size[0]])
         m_state = tf.zeros([m, self.lstm.state_size[1]])
@@ -57,9 +57,8 @@ class Generator:
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=labels))
         return cost
 
-
     def rollout(self):
-        #define rollout
+        pass
 
     def train(self, X_train, Y_train, X_test, Y_test):
         self.initialize_parameters()
@@ -70,7 +69,6 @@ class Generator:
         self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
-        m = X_train.shape[1]
         costs = []
         seed = 1
         self.sess.run(self.init)
@@ -78,26 +76,23 @@ class Generator:
         print("Starting training")
         for epoch in range(self.num_epochs):
             minibatch_cost = 0.
-            num_minibatches = int(m / self.minibatch_size)
             seed += 1
-            print("minibatching")
-            minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
-            print("done minibatching")
+            minibatches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
+            print("Starting epoch " + str(epoch))
             for minibatch in minibatches:
                 (minibatch_X, minibatch_Y) = minibatch
-                print "Running minibatch for epoch " + str(epoch)
                 _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
-                print "Ran minibatch for epoch " + str(epoch)
                 minibatch_cost += temp_cost / num_minibatches
 
-            if epoch % 10 == 0:
+            if epoch % 2 == 0:
                 print("Cost after epoch", epoch, ":", minibatch_cost)
 
             costs.append(minibatch_cost)
 
         return costs
 
-    def update(self, initial_state, ):
+    def update(self, initial_state):
+        pass
         numpy_state = initial_state.eval()
 
         total_loss = 0.0
@@ -105,7 +100,7 @@ class Generator:
             numpy_state, current_loss = session.run([final_state, loss],
             # Initialize the LSTM state from the previous iteration.
             feed_dict={initial_state: numpy_state, words: current_batch_of_words})
-    
+
         total_loss += current_loss
 
     def get_reward(self, X, discriminator):
@@ -121,17 +116,17 @@ hparams = {
     "num_units": 100,
     "learning_rate": 1e-5,
     "num_epochs": 10,
-    "minibatch_size": 500
+    "minibatch_size": 100
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 Y = G.one_hot(X)
 
-X_train = X[:288700]
-X_test = X[288700:]
+X_train = X[:500]
+X_test = X[500:1000]
 
-Y_train = Y[:288700]
-Y_test = Y[288700:]
+Y_train = Y[:500]
+Y_test = Y[500:1000]
 
 G.train(X_train, Y_train, X_test, Y_test)
