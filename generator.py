@@ -78,6 +78,7 @@ class Generator:
             minibatch_cost = 0.
             seed += 1
             minibatches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
+            num_minibatches = len(minibatches)
             print("Starting epoch " + str(epoch))
             for minibatch in minibatches:
                 (minibatch_X, minibatch_Y) = minibatch
