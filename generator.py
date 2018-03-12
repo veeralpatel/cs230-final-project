@@ -53,6 +53,10 @@ class Generator:
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.Y))
         return cost
 
+
+    def rollout(self):
+        #define rollout
+
     def train(self, X_train, Y_train, X_test, Y_test):
         self.initialize_parameters()
         self.out = self.forward_propagation()
