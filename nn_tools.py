@@ -1,6 +1,17 @@
 import math
 import numpy as np
 
+def reshape_sequences(X):
+    m, seq_length, embed_size = X.shape
+    new_x = np.zeros((seq_length, m, embed_size))
+
+    for t in range(seq_length):
+        row = []
+        for i in range(m):
+            row.append(X[i][t])
+        new_x[t,:,:] = np.array(row)
+
+    return new_x
 
 def random_mini_batches(X, Y, mini_batch_size = 64, seed = 0):
     """
@@ -21,7 +32,7 @@ def random_mini_batches(X, Y, mini_batch_size = 64, seed = 0):
     # Step 1: Shuffle (X, Y)
     permutation = list(np.random.permutation(m))
     shuffled_X = X[permutation, :]
-    shuffled_Y = Y[permutation, :].reshape((m,2))
+    shuffled_Y = Y[permutation, :]
 
     # Step 2: Partition (shuffled_X, shuffled_Y). Minus the end case.
     num_complete_minibatches = int(math.floor(m/mini_batch_size)) # number of mini batches of size mini_batch_size in your partitionning

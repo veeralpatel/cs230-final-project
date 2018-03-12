@@ -13,11 +13,11 @@ class Discriminator:
         """
         Assumes that hparams contains all of the following parameters
         """
-        #Input Data Params
+        #Input data params
         self.seq_length = hparams["seq_length"]   # expected number of tokens per review
         self.embedding_size = hparams["embedding_size"]
         self.vocab_size = hparams["vocab_size"]
-        #Network params:
+        #Model params:
         self.filter_sizes = hparams["filter_sizes"]
         self.num_filters = hparams["num_filters"]
         self.fully_connected_size = hparams["fully_connected_size"] # number of neurons in fully connected layer
@@ -120,8 +120,8 @@ class Discriminator:
         """
         #Embedding Layer
         W0 = self.params["W0"]
-        embedded_chars = tf.nn.embedding_lookup(W0, self.X)
-        embedded_chars_expanded = tf.expand_dims(embedded_chars, -1)
+        embedded_words = tf.nn.embedding_lookup(W0, self.X)
+        embedded_words_expanded = tf.expand_dims(embedded_words, -1)
 
         #Convolutional Layers
         pooled = []

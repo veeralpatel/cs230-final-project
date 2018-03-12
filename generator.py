@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import nn_tools
 from tensorflow.python.framework import ops
 
 
@@ -15,42 +16,45 @@ class Generator:
         self.vocab_size = hparams["vocab_size"]
         #Model params
         self.num_units = hparams["num_units"]
-        self.activation = hparams["activation"]
         #Training params
         self.learning_rate = hparams["learning_rate"]
+        self.num_epochs = hparams["num_epochs"]
+        self.minibatch_size = hparams["minibatch_size"]
 
-    def one_hot(self):
-        X = pickle.load(open('train_x.pkl', 'rb'))
-        one_hot_everything = []
-        for array in X:
-            one_hot_matrix = np.zeros((30,5002))
+    def one_hot(self, X):
+        m = X.shape[0]
+        one_hot_everything = np.zeros((m, 30, 5002))
+        for m, array in enumerate(X):
             for i,number in enumerate(array):
-                one_hot_matrix[i][number] = 1
-            one_hot_everything.append(one_hot_matrix)
+                one_hot_everything[m][i][number] = 1
         return one_hot_everything
 
     def initialize_parameters(self):
-        self.X = tf.placeholder(tf.int32, [self.seq_length, None, self.embedding_size], name="X")
-        self.Y = tf.placeholder(tf.float32, [self.seq_length, None, self.vocab_size], name="Y")
-
+        self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
+        self.Y = tf.placeholder(tf.int32, [None, self.seq_length, self.vocab_size], name="Y")
+        self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
     def forward_propagation(self):
         m = tf.shape(self.X)[1]
-        initial_state = tf.zeros([m, lstm.state_size])
-        state = initial_state
+        embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
+        X = tf.transpose(embedded_words, perm=(1,0,2))
 
+        c_state = tf.zeros([m, self.lstm.state_size[0]])
+        m_state = tf.zeros([m, self.lstm.state_size[1]])
+        state = (c_state, m_state)
         outputs = []
 
         for t in range(self.seq_length):
-            output, state = self.lstm(self.X[t, : , :])
+            output, state = self.lstm(X[t, :, :], state)
             z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
             outputs.append(z)
 
         return tf.stack(outputs)
 
     def compute_cost(self):
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.Y))
+        labels = tf.transpose(self.Y, perm=(1,0,2))
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=labels))
         return cost
 
     def train(self, X_train, Y_train, X_test, Y_test):
@@ -59,19 +63,31 @@ class Generator:
         self.cost = self.compute_cost()
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
-        self.init = global_variables_initializer()
+        self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
+        m = X_train.shape[1]
+        costs = []
+        seed = 1
+        self.sess.run(self.init)
+
+        print("Starting training")
         for epoch in range(self.num_epochs):
             minibatch_cost = 0.
             num_minibatches = int(m / self.minibatch_size)
             seed += 1
+            print("minibatching")
             minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
-
+            print("done minibatching")
             for minibatch in minibatches:
                 (minibatch_X, minibatch_Y) = minibatch
+                print "Running minibatch for epoch " + str(epoch)
                 _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
+                print "Ran minibatch for epoch " + str(epoch)
                 minibatch_cost += temp_cost / num_minibatches
+
+            if epoch % 10 == 0:
+                print("Cost after epoch", epoch, ":", minibatch_cost)
 
             costs.append(minibatch_cost)
 
@@ -79,4 +95,28 @@ class Generator:
 
     def get_reward(self, X, discriminator):
         #TODO
+        #X should be of shape (N, 30, 5002)
+        # go through each N, sum prediction from discriminator
         reward = discriminator.predict(X)
+
+hparams = {
+    "seq_length": 30,
+    "embedding_size": 5,
+    "vocab_size": 5002,
+    "num_units": 100,
+    "learning_rate": 1e-5,
+    "num_epochs": 10,
+    "minibatch_size": 500
+}
+
+G = Generator(hparams)
+X = pickle.load(open('train_x.pkl', 'rb'))
+Y = G.one_hot(X)
+
+X_train = X[:288700]
+X_test = X[288700:]
+
+Y_train = Y[:288700]
+Y_test = Y[288700:]
+
+G.train(X_train, Y_train, X_test, Y_test)
