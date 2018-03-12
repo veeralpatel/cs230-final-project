@@ -23,7 +23,7 @@ class Generator:
 
     def one_hot(self, X):
         m = X.shape[0]
-        one_hot_everything = np.zeros((m, 30, 5002))
+        one_hot_everything = np.zeros((m, 30, 5002), dtype=np.int8)
         for m, array in enumerate(X):
             for i, number in enumerate(array):
                 one_hot_everything[m][i][number] = 1
@@ -123,7 +123,7 @@ hparams = {
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 Y = G.one_hot(X)
-
+print("Loaded")
 X_train = X[:500]
 X_test = X[500:1000]
 
