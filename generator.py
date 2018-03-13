@@ -156,15 +156,15 @@ hparams = {
     "vocab_size": 5002,
     "num_units": 100,
     "learning_rate": 1e-2,
-    "num_epochs": 10,
+    "num_epochs": 20,
     "minibatch_size": 500
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:30000]
-X_test = X[30000:31000]
+X_train = X[:50000]
+X_test = X[50000:51000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
