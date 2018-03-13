@@ -37,6 +37,31 @@ def split_data(X, Y):
 
 	return X_train, X_test, Y_train, Y_test
 
+def get_reward(sess, input_x, rollout_num, discriminator, generator)
+    rewards = []
+    for i in range(rollout_num):
+        for given_num in range(1, SEQ_LENGTH):
+            samples = generate_samples(input_x, given_num)
+            feed = {discriminator.X: samples}
+            ypred_for_auc = sess.run(tf.nn.softmax(discriminator.Z4), feed)
+            ypred = np.array([item[0] for item in ypred_for_auc])
+            if i == 0:
+                rewards.append(ypred)
+            else:
+                rewards[given_num - 1] += ypred
+
+        # the last token reward
+        feed = {discriminator.X: input_x}
+        ypred_for_auc = sess.run(tf.nn.softmax(discriminator.Z4), feed)
+        ypred = np.array([item[0] for item in ypred_for_auc])
+        if i == 0:
+            rewards.append(ypred)
+        else:
+            rewards[SEQ_LENGTH-1] += ypred
+
+    rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
+    return rewards
+
 def main():
 	#potential seeding here
 
