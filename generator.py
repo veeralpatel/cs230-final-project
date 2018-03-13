@@ -110,7 +110,7 @@ class Generator:
                 (mb_x, mb_y) = tb
                 train_accuracy = self.sess.run(accuracy,{self.X: mb_x, self.Y: mb_y})
                 train_cost += train_accuracy / num_train_minibatches
-            print(train_cost)
+            print("Train Accuracy:", train_cost)
 
             test_cost = 0
             test_batches = nn_tools.random_mini_batches(X_test, Y_test, self.minibatch_size, seed)
@@ -119,7 +119,7 @@ class Generator:
                 (tmb_x, tmb_y) = test_mb
                 test_accuracy = self.sess.run(accuracy,{self.X: tmb_x, self.Y: tmb_y})
                 test_cost += test_accuracy / num_test_minibatches
-            print(test_cost)
+            print("Test Accuracy:", test_cost)
 
             # test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
             # print("Train Accuracy:", train_accuracy)
@@ -163,8 +163,8 @@ hparams = {
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:5000]
-X_test = X[5000:6000]
+X_train = X[:10000]
+X_test = X[10000:11000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
