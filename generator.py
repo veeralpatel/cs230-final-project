@@ -69,9 +69,8 @@ class Generator:
         self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
-        with tf.device('/device:GPU:0'):
-
-
+        #with tf.device('/device:GPU:0'):
+        with tf.device('/device:CPU:0'):
             costs = []
             seed = 1
             self.sess.run(self.init)
@@ -123,6 +122,7 @@ class Generator:
         print("Accuracy:", accuracy)
 
         train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
+        print(train_accuracy)
         test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
         print("Train Accuracy:", train_accuracy)
         print("Test Accuracy:", test_accuracy)
@@ -134,8 +134,8 @@ hparams = {
     "embedding_size": 5,
     "vocab_size": 5002,
     "num_units": 100,
-    "learning_rate": 1e-5,
-    "num_epochs": 10,
+    "learning_rate": 1e-2,
+    "num_epochs": 5,
     "minibatch_size": 50
 }
 
@@ -145,9 +145,7 @@ X = pickle.load(open('train_x.pkl', 'rb'))
 X_train = X[:500]
 X_test = X[500:1000]
 
-Y = G.one_hot(X_train)
-
-Y_train = Y[:500]
-Y_test = Y[500:1000]
+Y_train = G.one_hot(X_train)
+Y_test = G.one_hot(X_test)
 
 G.train(X_train, Y_train, X_test, Y_test)
