@@ -163,8 +163,8 @@ hparams = {
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:10000]
-X_test = X[10000:11000]
+X_train = X[:5000]
+X_test = X[5000:6000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
