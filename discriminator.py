@@ -38,12 +38,12 @@ class Discriminator:
             self.cost = self.compute_cost()
             self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
             self.init = tf.global_variables_initializer()
+            self.sess = tf.Session()
 
         costs = []
         seed = 1
         m = X_train.shape[0]
 
-        self.sess = tf.Session()
         with tf.device('/device:GPU:0'):
 
             if restart:
@@ -130,7 +130,7 @@ class Discriminator:
         for i in range(len(self.num_filters)):
             W = self.params["W" + str(i+1)]
 
-            Z = tf.nn.conv2d(embedded_chars_expanded, W, strides=[1,1,1,1], padding='VALID')
+            Z = tf.nn.conv2d(embedded_words_expanded, W, strides=[1,1,1,1], padding='VALID')
             A = tf.nn.relu(Z)
             P = tf.nn.max_pool(A, ksize=[1, self.seq_length - self.filter_sizes[i] + 1, 1, 1],
                                     strides=[1,1,1,1],
@@ -193,15 +193,20 @@ permutation = list(np.random.permutation(m))
 X = X[permutation, :]
 Y = Y[permutation, :].reshape((m,2))
 
-X_train = X[:288700]
+X_train = X[11000:288700]
 X_test = X[288700:]
 
-Y_train = Y[:288700]
+Y_train = Y[11000:288700]
 Y_test = Y[288700:]
 
 D.train(X_train, Y_train, X_test, Y_test, hparams)
 
-print('Inputing')
-print(X[288702])
-print D.predict([X[288702]])
+# print('Inputing')
+# print(X[288702])
+# print D.predict([X[288702]])
+
+X_train_continue = X[0:10000]
+Y_train_continue = Y[0:10000]
+
+D.train(X_train_continue, Y_train_continue, X_test, Y_test, hparams, restart=False)
 
