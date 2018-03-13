@@ -108,7 +108,7 @@ class Generator:
             test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
             print("Train Accuracy:", train_accuracy)
             print("Test Accuracy:", test_accuracy)
-            
+
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
     def update(self, initial_state):
@@ -139,16 +139,16 @@ hparams = {
     "embedding_size": 5,
     "vocab_size": 5002,
     "num_units": 100,
-    "learning_rate": 1e-4,
-    "num_epochs": 30,
-    "minibatch_size": 1000
+    "learning_rate": 1e-2,
+    "num_epochs": 100,
+    "minibatch_size": 500
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:5000]
-X_test = X[5000:6000]
+X_train = X[:50000]
+X_test = X[50000:60000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
