@@ -73,10 +73,12 @@ class Generator:
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
         self.init = tf.global_variables_initializer()
-        self.sess = tf.Session()
 
-        #with tf.device('/device:GPU:0'):
-        with tf.device('/device:CPU:0'):
+        config = tf.ConfigProto(allow_soft_placement = True)
+        self.sess = tf.Session(config = config)
+
+        with tf.device('/device:GPU:0'):
+        # with tf.device('/device:CPU:0'):
             costs = []
             seed = 1
             self.sess.run(self.init)
@@ -97,12 +99,39 @@ class Generator:
 
                 costs.append(minibatch_cost)
 
-            plt.plot(np.squeeze(costs))
-            plt.ylabel('cost')
-            plt.xlabel('iterations (per tens)')
-            plt.title("Learning rate =" + str(self.learning_rate))
-            plt.show()
-            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
+            # plt.plot(np.squeeze(costs))
+            # plt.ylabel('cost')
+            # plt.xlabel('iterations (per tens)')
+            # plt.title("Learning rate =" + str(self.learning_rate))
+            # plt.show()
+
+            correct_prediction = tf.equal(tf.argmax(self.out, 2), tf.argmax(self.labels, 2))
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            print("Accuracy:", accuracy)
+
+            train_cost = 0
+            train_batches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
+            num_train_minibatches = len(train_batches)
+            for tb in train_batches:
+                (mb_x, mb_y) = tb
+                train_accuracy = self.sess.run(accuracy,{self.X: mb_x, self.Y: mb_y})
+                train_cost += train_accuracy / num_train_minibatches
+            print("Train Accuracy:", train_cost)
+
+            test_cost = 0
+            test_batches = nn_tools.random_mini_batches(X_test, Y_test, self.minibatch_size, seed)
+            num_test_minibatches = len(test_batches)
+            for test_mb in test_batches:
+                (tmb_x, tmb_y) = test_mb
+                test_accuracy = self.sess.run(accuracy,{self.X: tmb_x, self.Y: tmb_y})
+                test_cost += test_accuracy / num_test_minibatches
+            print("Test Accuracy:", test_cost)
+
+            # test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
+            # print("Train Accuracy:", train_accuracy)
+            # print("Test Accuracy:", test_accuracy)
+
+            # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
     def update(self, initial_state):
         pass
@@ -116,64 +145,32 @@ class Generator:
 
         total_loss += current_loss
 
-    def adversarial_loss(self):
-        samples = self.rollout() # (m, T_x, 1)
-        probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
-        rewards = self.get_reward(samples) # m x 1
-        loss = -tf.reduce_sum(
-            tf.reduce_sum(
-                tf.one_hot(tf.reshape(samples, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
-                    tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0)
-                ), 1
-            ) * tf.reshape(self.rewards, [-1])
-        )
-        return loss
 
-    def adversarial_step(self):
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-        loss = self.adversarial_loss()
-
-        grads_and_params = optimizer.compute_gradients(loss)
-        (grads, params) = np.transpose(grads_and_params).tolist()
-
-        grads, _ = tf.clip_by_global_norm(grads, 5.0)
-
-        return optimizer.apply_gradients(zip(grads, params))
-
-
-    def get_reward(self, X, discriminator):
         #TODO
         #X should be of shape (N, 30, 5002)
         # go through each N, sum prediction from discriminator
         reward = discriminator.predict(X)
 
-    def report_accuracy(self, X_train, Y_train, X_test, Y_test):
-        correct_prediction = tf.equal(tf.argmax(self.out, 2), tf.argmax(self.labels, 2))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        print("Accuracy:", accuracy)
+    # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
 
-        train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
-        test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
-        print("Train Accuracy:", train_accuracy)
-        print("Test Accuracy:", test_accuracy)
 
-        return train_accuracy, test_accuracy
+    #     return train_accuracy, test_accuracy
 
 hparams = {
     "seq_length": 30,
-    "embedding_size": 5,
+    "embedding_size": 100,
     "vocab_size": 5002,
-    "num_units": 100,
+    "num_units": 300,
     "learning_rate": 1e-2,
-    "num_epochs": 5,
-    "minibatch_size": 50
+    "num_epochs": 10,
+    "minibatch_size": 500
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:500]
-X_test = X[500:1000]
+X_train = X[:100000]
+X_test = X[100000:101000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
