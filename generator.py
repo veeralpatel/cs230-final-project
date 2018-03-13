@@ -108,7 +108,7 @@ class Generator:
             num_train_minibatches = len(train_batches)
             for tb in train_batches:
                 (mb_x, mb_y) = tb
-                train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
+                train_accuracy = self.sess.run(accuracy,{self.X: mb_x, self.Y: mb_y})
                 train_cost += train_accuracy / num_train_minibatches
             print(train_cost)
 
