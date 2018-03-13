@@ -1,5 +1,6 @@
 import math
 import pickle
+import lstm
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -32,8 +33,13 @@ class Generator:
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
         self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
+        #embedding layer
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
+        #RNN cell
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
+        #Output layer
+        self.Wo = tf.Variable(tf.random_normal([self.num_units, self.vocab_size], 0.1), name="Wo")
+        self.bo = tf.Variable(tf.random_normal([self.vocab_size], 0.1), name="Wo")
 
     def forward_propagation(self):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
@@ -47,7 +53,7 @@ class Generator:
 
         for t in range(self.seq_length):
             output, state = self.lstm(X[t, :, :], state)
-            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            z = tf.matmul(output, self.Wo) + self.bo
             outputs.append(z)
 
         return tf.stack(outputs)
@@ -87,7 +93,7 @@ class Generator:
                     minibatch_cost += temp_cost / num_minibatches
 
                 if epoch % 2 == 0:
-                    print("Cost after epoch", epoch, minibatch_cost)
+                    print "Cost after epoch" + str(epoch) + ':' + str(minibatch_cost)
 
                 costs.append(minibatch_cost)
 
@@ -110,6 +116,31 @@ class Generator:
 
         total_loss += current_loss
 
+    def adversarial_loss(self):
+        samples = self.rollout() # (m, T_x, 1)
+        probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
+        rewards = self.get_reward(samples) # m x 1
+        loss = -tf.reduce_sum(
+            tf.reduce_sum(
+                tf.one_hot(tf.reshape(samples, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
+                    tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0)
+                ), 1
+            ) * tf.reshape(self.rewards, [-1])
+        )
+        return loss
+
+    def adversarial_step(self):
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        loss = self.adversarial_loss()
+
+        grads_and_params = optimizer.compute_gradients(loss)
+        (grads, params) = np.transpose(grads_and_params).tolist()
+
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
+
+        return optimizer.apply_gradients(zip(grads, params))
+
+
     def get_reward(self, X, discriminator):
         #TODO
         #X should be of shape (N, 30, 5002)
@@ -122,7 +153,6 @@ class Generator:
         print("Accuracy:", accuracy)
 
         train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
-        print(train_accuracy)
         test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
         print("Train Accuracy:", train_accuracy)
         print("Test Accuracy:", test_accuracy)
