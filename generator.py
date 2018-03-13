@@ -1,6 +1,5 @@
 import math
 import pickle
-import lstm
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -133,22 +132,20 @@ class Generator:
 
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
-    def adversarial_loss(self):
-        samples = self.rollout() # (m, T_x, 1)
+    def adversarial_loss(self, rewards):
         probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
-        rewards = self.get_reward(samples) # m x 1
         loss = -tf.reduce_sum(
             tf.reduce_sum(
-                tf.one_hot(tf.reshape(samples, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
+                tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
                     tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0)
                 ), 1
-            ) * tf.reshape(self.rewards, [-1])
+            ) * tf.reshape(rewards, [-1])
         )
         return loss
 
-    def adversarial_step(self):
+    def policy_grad_update(self, rewards):
         optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-        loss = self.adversarial_loss()
+        loss = self.adversarial_loss(rewards)
 
         grads_and_params = optimizer.compute_gradients(loss)
         (grads, params) = np.transpose(grads_and_params).tolist()
@@ -156,24 +153,6 @@ class Generator:
         grads, _ = tf.clip_by_global_norm(grads, 5.0)
 
         return optimizer.apply_gradients(zip(grads, params))
-        
-    def update(self, initial_state):
-        pass
-        numpy_state = initial_state.eval()
-
-        total_loss = 0.0
-        for current_batch_of_words in words_in_dataset:
-            numpy_state, current_loss = session.run([final_state, loss],
-            # Initialize the LSTM state from the previous iteration.
-            feed_dict={initial_state: numpy_state, words: current_batch_of_words})
-
-        total_loss += current_loss
-
-
-        #TODO
-        #X should be of shape (N, 30, 5002)
-        # go through each N, sum prediction from discriminator
-        reward = discriminator.predict(X)
 
     # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
 

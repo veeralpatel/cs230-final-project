@@ -30,7 +30,7 @@ class Discriminator:
 
         self.params = {}
 
-    def train(self, X_train, Y_train, X_test, Y_test, hparams, restart=True):
+    def train(self, X_train, Y_train, X_test, Y_test, restart=True):
         if restart:
             ops.reset_default_graph()
             self.initialize_parameters()
@@ -67,12 +67,12 @@ class Discriminator:
             plt.plot(np.squeeze(costs))
             plt.ylabel('cost')
             plt.xlabel('iterations (per tens)')
-            plt.title("Learning rate =" + str(hparams['learning_rate']))
+            plt.title("Learning rate =" + self.learning_rate))
             plt.show()
 
         return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
-    def predict(self, X_sample):        
+    def predict(self, X_sample):
         prediction = tf.nn.softmax(self.Z4)
         y_hat = self.sess.run(prediction, {self.X: X_sample})
         return y_hat

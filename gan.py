@@ -1,7 +1,6 @@
-import tensorflow as tf 
-from discriminator import DISCRIMINATOR
-from generator import GENERATOR
-import generator
+import tensorflow as tf
+from discriminator import Discriminator
+from generator import Generator
 import pickle
 
 #GENERATOR HYPERPARAMETERS
@@ -37,7 +36,7 @@ def split_data(X, Y):
 
 	return X_train, X_test, Y_train, Y_test
 
-def get_reward(sess, input_x, rollout_num, discriminator, generator)
+def get_reward(sess, input_x, rollout_num, discriminator, generator):
     rewards = []
     for i in range(rollout_num):
         for given_num in range(1, SEQ_LENGTH):
@@ -65,69 +64,72 @@ def get_reward(sess, input_x, rollout_num, discriminator, generator)
 def main():
 	#potential seeding here
 
+	#################################################################################
+	# 								INITIALIZATION 									#
+	#################################################################################
 
-
-    hparams = {
-        "seq_length": 30,
-        "embedding_size": 5,
+    G_hparams = {
+        "seq_length": SEQ_LENGTH,
+        "embedding_size": EMB_DIM,
         "vocab_size": 5002,
         "num_units": 100,
         "learning_rate": 1e-5,
         "num_epochs": 10
     }
-    G = Generator(hparams)
 
-    X = pickle.load(open('train_x.pkl', 'rb'))
+	D_hparams = {
+		"seq_length": SEQ_LENGTH,
+		"embedding_size": EMB_DIM,
+		"vocab_size": 5002,
+		"filter_sizes": [1, 2],
+		"num_filters": [1, 2],
+		"fully_connected_size": 5,
+		"learning_rate": 1e-5,
+		"num_epochs": 100,
+		"minibatch_size": 500
+	}
 
-    X_train = X[:90000]
-    X_test = X[90000:100000]
+	index_to_int = pickle.load(open('id_to_word.pkl'))
 
-    Y_train = G.one_hot(X_train)
-    Y_test = G.one_hot(X_test)
+    G = Generator(G_hparams)
+	D = Discriminator(D_hparams)
 
-    G.train(X_train, Y_train, X_test, Y_test)
+    G_X = pickle.load(open('train_x.pkl', 'rb'))
 
-
-    index_to_int = pickle.load(open('id_to_word.pkl'))
-
-
-	hparams = {
-            "seq_length": SEQ_LENGTH,
-            "embedding_size": EMB_DIM,
-            "vocab_size": 5002,
-            "filter_sizes": [1, 2],
-            "num_filters": [1, 2],
-            "fully_connected_size": 5,
-            "learning_rate": 1e-5,
-            "num_epochs": 100,
-            "minibatch_size": 500
-          }
-
-	D = Discriminator(hparams)
-	X = pickle.load(open('train_x.pkl', 'rb'))
-	Y = pickle.load(open('train_y.pkl', 'rb'))
-	X_train, X_test, Y_train, Y_test = split_data(X, Y)
+	D_X = pickle.load(open('train_x.pkl', 'rb'))
+	D_Y = pickle.load(open('train_y.pkl', 'rb'))
 
 
-	
+	#################################################################################
+	# 								PRE-TRAINING 									#
+	#################################################################################
 
+	G_X_train = X[:90000]
+	G_X_test = X[90000:100000]
+	G_Y_train = G.one_hot(G_X_train)
+	G_Y_test = G.one_hot(G_X_test)
 
+	#TODO: Add generator samples into D_X_train (?)
+	D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X, D_Y)
 
-	#Pretrain Discriminator
-
-
+    G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
+	D.train(D_X_train, D_Y_train, D_X_test, D_Y_test)
 
 	#define rollout/policy gradient (for generator)
 	#alpha hyperparam
 
+	G_update = G.policy_grad_update()
 
-	#Adversarial Training
+
+	#################################################################################
+	# 						    ADVERARIAL-TRAINING 								#
+	#################################################################################
 
 	for total_batch in range(TOTAL_BATCH):
         # Train the generator for one step
         for it in range(1):
-            samples = generator.generate(sess)
-            rewards = rollout.get_reward(sess, samples, 16, discriminator)
+            samples = G.generate(sess)
+            rewards = G.get_reward(sess, samples, 16, D)
             feed = {generator.x: samples, generator.rewards: rewards}
             _ = sess.run(generator.g_updates, feed_dict=feed)
 
@@ -158,12 +160,3 @@ def main():
                         discriminator.dropout_keep_prob: dis_dropout_keep_prob
                     }
                     _ = sess.run(discriminator.train_op, feed)
-
-
-
-
-
-
-
-
-
