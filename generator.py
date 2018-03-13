@@ -103,11 +103,27 @@ class Generator:
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             print("Accuracy:", accuracy)
 
-            train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
-            print(train_accuracy)
-            test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
-            print("Train Accuracy:", train_accuracy)
-            print("Test Accuracy:", test_accuracy)
+            train_cost = 0
+            train_batches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
+            num_train_minibatches = len(train_batches)
+            for tb in train_batches:
+                (mb_x, mb_y) = tb
+                train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
+                train_cost += train_accuracy / num_train_minibatches
+            print(train_cost)
+
+            test_cost = 0
+            test_batches = nn_tools.random_mini_batches(X_test, Y_test, self.minibatch_size, seed)
+            num_test_minibatches = len(test_batches)
+            for test_mb in test_batches:
+                (tmb_x, tmb_y) = test_mb
+                test_accuracy = self.sess.run(accuracy,{self.X: tmb_x, self.Y: tmb_y})
+                test_cost += test_accuracy / num_test_minibatches
+            print(test_cost)
+
+            # test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
+            # print("Train Accuracy:", train_accuracy)
+            # print("Test Accuracy:", test_accuracy)
 
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
@@ -140,7 +156,7 @@ hparams = {
     "vocab_size": 5002,
     "num_units": 100,
     "learning_rate": 1e-2,
-    "num_epochs": 100,
+    "num_epochs": 20,
     "minibatch_size": 500
 }
 
