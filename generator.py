@@ -152,11 +152,11 @@ class Generator:
 
 hparams = {
     "seq_length": 30,
-    "embedding_size": 5,
+    "embedding_size": 20,
     "vocab_size": 5002,
-    "num_units": 100,
+    "num_units": 300,
     "learning_rate": 1e-2,
-    "num_epochs": 20,
+    "num_epochs": 10,
     "minibatch_size": 500
 }
 
