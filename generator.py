@@ -133,6 +133,30 @@ class Generator:
 
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
+    def adversarial_loss(self):
+        samples = self.rollout() # (m, T_x, 1)
+        probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
+        rewards = self.get_reward(samples) # m x 1
+        loss = -tf.reduce_sum(
+            tf.reduce_sum(
+                tf.one_hot(tf.reshape(samples, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
+                    tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0)
+                ), 1
+            ) * tf.reshape(self.rewards, [-1])
+        )
+        return loss
+
+    def adversarial_step(self):
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        loss = self.adversarial_loss()
+
+        grads_and_params = optimizer.compute_gradients(loss)
+        (grads, params) = np.transpose(grads_and_params).tolist()
+
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
+
+        return optimizer.apply_gradients(zip(grads, params))
+        
     def update(self, initial_state):
         pass
         numpy_state = initial_state.eval()
