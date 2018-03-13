@@ -31,7 +31,7 @@ class Generator:
 
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
-        self.Y = tf.placeholder(tf.int32, [None, self.seq_length, self.vocab_size], name="Y")
+        self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
@@ -53,8 +53,8 @@ class Generator:
         return tf.stack(outputs)
 
     def compute_cost(self):
-        labels = tf.transpose(self.Y, perm=(1,0,2))
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=labels))
+        self.labels = tf.transpose(self.Y, perm=(1,0,2))
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.labels))
         return cost
 
     def rollout(self):
@@ -69,8 +69,8 @@ class Generator:
         self.init = tf.global_variables_initializer()
         self.sess = tf.Session()
 
-        with tf.device('/gpu:0'):
-
+        #with tf.device('/device:GPU:0'):
+        with tf.device('/device:CPU:0'):
             costs = []
             seed = 1
             self.sess.run(self.init)
@@ -81,18 +81,22 @@ class Generator:
                 seed += 1
                 minibatches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
                 num_minibatches = len(minibatches)
-                print("Starting epoch " + str(epoch))
                 for minibatch in minibatches:
                     (minibatch_X, minibatch_Y) = minibatch
                     _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
                     minibatch_cost += temp_cost / num_minibatches
 
                 if epoch % 2 == 0:
-                    print("Cost after epoch", epoch, ":", minibatch_cost)
+                    print("Cost after epoch", epoch, minibatch_cost)
 
                 costs.append(minibatch_cost)
 
-            return costs
+            plt.plot(np.squeeze(costs))
+            plt.ylabel('cost')
+            plt.xlabel('iterations (per tens)')
+            plt.title("Learning rate =" + str(self.learning_rate))
+            plt.show()
+            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
     def update(self, initial_state):
         pass
@@ -112,25 +116,36 @@ class Generator:
         # go through each N, sum prediction from discriminator
         reward = discriminator.predict(X)
 
+    def report_accuracy(self, X_train, Y_train, X_test, Y_test):
+        correct_prediction = tf.equal(tf.argmax(self.out, 2), tf.argmax(self.labels, 2))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        print("Accuracy:", accuracy)
+
+        train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
+        print(train_accuracy)
+        test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
+        print("Train Accuracy:", train_accuracy)
+        print("Test Accuracy:", test_accuracy)
+
+        return train_accuracy, test_accuracy
+
 hparams = {
     "seq_length": 30,
     "embedding_size": 5,
     "vocab_size": 5002,
     "num_units": 100,
-    "learning_rate": 1e-5,
-    "num_epochs": 100,
-    "minibatch_size": 500
+    "learning_rate": 1e-2,
+    "num_epochs": 5,
+    "minibatch_size": 50
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:5000]
-X_test = X[5000:10000]
+X_train = X[:500]
+X_test = X[500:1000]
 
-Y = G.one_hot(X_train)
-
-Y_train = Y[:5000]
-Y_test = Y[5000:10000]
+Y_train = G.one_hot(X_train)
+Y_test = G.one_hot(X_test)
 
 G.train(X_train, Y_train, X_test, Y_test)
