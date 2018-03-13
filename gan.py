@@ -36,7 +36,7 @@ def split_data(X, Y):
 
 	return X_train, X_test, Y_train, Y_test
 
-def get_reward(sess, input_x, rollout_num, discriminator, generator)
+def get_reward(sess, input_x, rollout_num, discriminator, generator):
     rewards = []
     for i in range(rollout_num):
         for given_num in range(1, SEQ_LENGTH):
