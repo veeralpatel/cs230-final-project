@@ -44,30 +44,31 @@ class Discriminator:
         m = X_train.shape[0]
 
         self.sess = tf.Session()
+        with tf.device('/device:GPU:0'):
 
-        if restart:
-            self.sess.run(self.init)
+            if restart:
+                self.sess.run(self.init)
 
-        for epoch in range(self.num_epochs):
-            minibatch_cost = 0.
-            num_minibatches = int(m / self.minibatch_size)
-            seed += 1
-            minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
+            for epoch in range(self.num_epochs):
+                minibatch_cost = 0.
+                num_minibatches = int(m / self.minibatch_size)
+                seed += 1
+                minibatches = nn_tools.random_mini_batches(X_train, Y_train, num_minibatches, seed)
 
-            for minibatch in minibatches:
-                (minibatch_X, minibatch_Y) = minibatch
-                _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
-                minibatch_cost += temp_cost / num_minibatches
+                for minibatch in minibatches:
+                    (minibatch_X, minibatch_Y) = minibatch
+                    _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
+                    minibatch_cost += temp_cost / num_minibatches
 
-            if epoch % 10 == 0:
-                print("Cost after epoch", epoch, ":", minibatch_cost)
-            costs.append(minibatch_cost)
+                if epoch % 10 == 0:
+                    print("Cost after epoch", epoch, ":", minibatch_cost)
+                costs.append(minibatch_cost)
 
-        plt.plot(np.squeeze(costs))
-        plt.ylabel('cost')
-        plt.xlabel('iterations (per tens)')
-        plt.title("Learning rate =" + str(hparams['learning_rate']))
-        plt.show()
+            plt.plot(np.squeeze(costs))
+            plt.ylabel('cost')
+            plt.xlabel('iterations (per tens)')
+            plt.title("Learning rate =" + str(hparams['learning_rate']))
+            plt.show()
 
         return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
