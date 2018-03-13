@@ -40,6 +40,32 @@ def split_data(X, Y):
 def main():
 	#potential seeding here
 
+
+
+    hparams = {
+        "seq_length": 30,
+        "embedding_size": 5,
+        "vocab_size": 5002,
+        "num_units": 100,
+        "learning_rate": 1e-5,
+        "num_epochs": 10
+    }
+    G = Generator(hparams)
+
+    X = pickle.load(open('train_x.pkl', 'rb'))
+
+    X_train = X[:90000]
+    X_test = X[90000:100000]
+
+    Y_train = G.one_hot(X_train)
+    Y_test = G.one_hot(X_test)
+
+    G.train(X_train, Y_train, X_test, Y_test)
+
+
+    index_to_int = pickle.load(open('id_to_word.pkl'))
+
+
 	hparams = {
             "seq_length": SEQ_LENGTH,
             "embedding_size": EMB_DIM,
@@ -58,18 +84,7 @@ def main():
 	X_train, X_test, Y_train, Y_test = split_data(X, Y)
 
 
-	hparams = {
-	    "seq_length": 30,
-	    "embedding_size": 5,
-	    "vocab_size": 5002,
-	    "num_units": 100,
-	    "learning_rate": 1e-5,
-	    "num_epochs": 10
-	}
-	G = Generator(hparams)
-
-	#Pretrain Generator
-
+	
 
 
 
