@@ -67,7 +67,9 @@ class Generator:
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
         self.init = tf.global_variables_initializer()
-        self.sess = tf.Session()
+
+        config = tf.ConfigProto(allow_soft_placement = True)
+        self.sess = tf.Session(config = config)
 
         with tf.device('/device:GPU:0'):
         # with tf.device('/device:CPU:0'):
@@ -91,12 +93,23 @@ class Generator:
 
                 costs.append(minibatch_cost)
 
-            plt.plot(np.squeeze(costs))
-            plt.ylabel('cost')
-            plt.xlabel('iterations (per tens)')
-            plt.title("Learning rate =" + str(self.learning_rate))
-            plt.show()
-            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
+            # plt.plot(np.squeeze(costs))
+            # plt.ylabel('cost')
+            # plt.xlabel('iterations (per tens)')
+            # plt.title("Learning rate =" + str(self.learning_rate))
+            # plt.show()
+
+            correct_prediction = tf.equal(tf.argmax(self.out, 2), tf.argmax(self.labels, 2))
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            print("Accuracy:", accuracy)
+
+            train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
+            print(train_accuracy)
+            test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
+            print("Train Accuracy:", train_accuracy)
+            print("Test Accuracy:", test_accuracy)
+            
+            # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
     def update(self, initial_state):
         pass
@@ -110,24 +123,16 @@ class Generator:
 
         total_loss += current_loss
 
-    def get_reward(self, X, discriminator):
+    def get_reward(self, sess, input_x, rollout_num, discriminator):
         #TODO
         #X should be of shape (N, 30, 5002)
         # go through each N, sum prediction from discriminator
         reward = discriminator.predict(X)
 
-    def report_accuracy(self, X_train, Y_train, X_test, Y_test):
-        correct_prediction = tf.equal(tf.argmax(self.out, 2), tf.argmax(self.labels, 2))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        print("Accuracy:", accuracy)
+    # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
 
-        train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
-        print(train_accuracy)
-        test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
-        print("Train Accuracy:", train_accuracy)
-        print("Test Accuracy:", test_accuracy)
 
-        return train_accuracy, test_accuracy
+    #     return train_accuracy, test_accuracy
 
 hparams = {
     "seq_length": 30,
@@ -142,8 +147,8 @@ hparams = {
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:50000]
-X_test = X[50000:100000]
+X_train = X[:5000]
+X_test = X[5000:6000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
