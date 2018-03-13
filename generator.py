@@ -23,7 +23,7 @@ class Generator:
 
     def one_hot(self, X):
         m = X.shape[0]
-        one_hot_everything = np.zeros((m, 30, 5002))
+        one_hot_everything = np.zeros((m, 30, 5002), dtype=np.int8)
         for m, array in enumerate(X):
             for i, number in enumerate(array):
                 one_hot_everything[m][i][number] = 1
@@ -31,7 +31,7 @@ class Generator:
 
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
-        self.Y = tf.placeholder(tf.int32, [None, self.seq_length, self.vocab_size], name="Y")
+        self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
@@ -70,6 +70,7 @@ class Generator:
         self.sess = tf.Session()
 
         with tf.device('/device:GPU:0'):
+
 
             costs = []
             seed = 1
@@ -118,19 +119,19 @@ hparams = {
     "vocab_size": 5002,
     "num_units": 100,
     "learning_rate": 1e-5,
-    "num_epochs": 10,
-    "minibatch_size": 100
+    "num_epochs": 100,
+    "minibatch_size": 500
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:500]
-X_test = X[500:1000]
+X_train = X[:5000]
+X_test = X[5000:10000]
 
 Y = G.one_hot(X_train)
 
-Y_train = Y[:500]
-Y_test = Y[500:1000]
+Y_train = Y[:5000]
+Y_test = Y[5000:10000]
 
 G.train(X_train, Y_train, X_test, Y_test)
