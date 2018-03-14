@@ -50,8 +50,8 @@ class Generator:
         for t in range(self.seq_length):
             output, state = self.lstm(output, state)
             z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
-            max_index = tf.argmax(z)
-            output = tf.nn.embedding_lookup(self.G_embed, [max_index])
+            max_index = tf.argmax(z, axis=1)
+            output = tf.nn.embedding_lookup(self.G_embed, [max_index])[0]
             outputs.append(output)
         return tf.stack(outputs)
 
