@@ -32,6 +32,8 @@ class Generator:
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
         self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
+        self.rewards = tf.placeholder(tf.float32, [None, self.seq_length], name="rewards")
+
         #embedding layer
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
         #RNN cell
@@ -61,9 +63,6 @@ class Generator:
         self.labels = tf.transpose(self.Y, perm=(1,0,2))
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.labels))
         return cost
-
-    def rollout(self):
-        pass
 
     def train(self, X_train, Y_train, X_test, Y_test):
         self.initialize_parameters()
@@ -132,27 +131,31 @@ class Generator:
 
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
-    def adversarial_loss(self, rewards):
+    def adversarial_loss(self):
         probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
         loss = -tf.reduce_sum(
             tf.reduce_sum(
                 tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
                     tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0)
                 ), 1
-            ) * tf.reshape(rewards, [-1])
+            ) * tf.reshape(self.rewards, [-1])
         )
         return loss
 
-    def policy_grad_update(self, rewards):
+    def policy_grad_update(self):
         optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-        loss = self.adversarial_loss(rewards)
+        loss = self.adversarial_loss()
 
         grads_and_params = optimizer.compute_gradients(loss)
         (grads, params) = np.transpose(grads_and_params).tolist()
 
         grads, _ = tf.clip_by_global_norm(grads, 5.0)
 
-        return optimizer.apply_gradients(zip(grads, params))
+        return loss, optimizer.apply_gradients(zip(grads, params))
+
+
+    def rollout(self, start_t):
+
 
     # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
 

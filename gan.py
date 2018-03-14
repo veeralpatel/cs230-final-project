@@ -118,8 +118,7 @@ def main():
 	#define rollout/policy gradient (for generator)
 	#alpha hyperparam
 
-	G_update = G.policy_grad_update()
-
+	G_loss, G_update = G.policy_grad_update()
 
 	#################################################################################
 	# 						    ADVERARIAL-TRAINING 								#
@@ -129,9 +128,8 @@ def main():
         # Train the generator for one step
         for it in range(1):
             samples = G.generate(sess)
-            rewards = G.get_reward(sess, samples, 16, D)
-            feed = {generator.x: samples, generator.rewards: rewards}
-            _ = sess.run(generator.g_updates, feed_dict=feed)
+            rewards = get_reward(sess, samples, 16, D)
+            _, loss = sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
 
         # Test
         if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
