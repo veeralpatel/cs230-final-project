@@ -35,6 +35,24 @@ class Generator:
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
 
+    def generate_examples(self, start_index = 0):
+        initial_output = np.zeros((64, self.embedding_size))
+        outputs = []
+        m = 64
+        c_state = tf.zeros([m, self.lstm.state_size[0]])
+        m_state = tf.zeros([m, self.lstm.state_size[1]])
+        state = (c_state, m_state)
+        output = initial_output
+        for t in range(self.seq_length):
+            output, state = self.lstm(initial_output, state)
+            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            max_index = argmax(z)
+            output = tf.nn.embedding_lookup(self.G_embed, [max_index])
+            outputs.append(output)
+        return tf.stack(outputs)
+
+
+
     def forward_propagation(self):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X = tf.transpose(embedded_words, perm=(1,0,2))
