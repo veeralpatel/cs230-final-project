@@ -51,11 +51,13 @@ class Generator:
         state = (c_state, m_state)
         for t in range(self.seq_length):
             output, state = self.lstm(output, state)
-            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            z = tf.nn.softmax(self.output_layer(output))
             max_index = tf.argmax(z, axis=1)
             output = tf.nn.embedding_lookup(self.G_embed, [max_index])[0]
             outputs.append(output)
-        return tf.stack(outputs)
+
+        examples = tf.stack(outputs)
+        return self.sess.run(examples)
 
     def forward_propagation(self):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
@@ -68,10 +70,8 @@ class Generator:
         outputs = []
 
         for t in range(self.seq_length):
-            if t == 0:
-                print(X[t, :, :].shape)
-            output, state = self.lstm(X[t, :, :], state)
-            z = tf.matmul(output, self.Wo) + self.bo
+            a, state = self.lstm(X[t, :, :], state)
+            z = self.output_layer(a)
             outputs.append(z)
 
         return tf.stack(outputs)
@@ -172,6 +172,35 @@ class Generator:
 
 
     def rollout(self, start_t):
+        embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
+        X = tf.transpose(embedded_words, perm=(1,0,2))
+        m = tf.shape(X)[1]
+
+        a0 = tf.zeros([m, self.lstm.state_size[0]]) #activation
+        m0 = tf.zeros([m, self.lstm.state_size[1]]) #memory cell
+        xt = tf.zeros([m, self.embedding_size])
+
+        state = (a0, m0)
+        outputs = []
+        t = 0
+        while t < start_t:
+            _, state = self.lstm(xt, state)
+            xt = X[t, :, :]
+            outputs.append(xt)
+            t += 1
+
+        while t < self.seq_length:
+            a, state = self.lstm(xt, state)
+            z = tf.nn.softmax(self.output_layer(a))
+            next_token = tf.reshape(tf.multinomial(tf.log(z), 1), [m])
+            xt = tf.nn.embedding_lookup(self.G_embed, tf.cast(next_token, tf.int32))
+            outputs.append(xt)
+            t += 1
+
+        return tf.stack(outputs)
+
+    def output_layer(self, a):
+        return tf.matmul(a, self.Wo) + self.bo
 
 
     # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
@@ -201,4 +230,3 @@ Y_test = G.one_hot(X_test)
 G.train(X_train, Y_train, X_test, Y_test)
 
 print G.generate_examples(0)
-

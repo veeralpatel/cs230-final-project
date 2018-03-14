@@ -36,11 +36,11 @@ def split_data(X, Y):
 
 	return X_train, X_test, Y_train, Y_test
 
-def get_reward(sess, input_x, rollout_num, discriminator, generator):
+def get_reward(sess, samples, rollout_num, discriminator, generator):
     rewards = []
     for i in range(rollout_num):
         for given_num in range(1, SEQ_LENGTH):
-            samples = generate_samples(input_x, given_num)
+            complete_samples = generate_samples(samples, given_num)
             feed = {discriminator.X: samples}
             ypred_for_auc = sess.run(tf.nn.softmax(discriminator.Z4), feed)
             ypred = np.array([item[0] for item in ypred_for_auc])
@@ -115,14 +115,12 @@ def main():
     G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
 	D.train(D_X_train, D_Y_train, D_X_test, D_Y_test)
 
-	#define rollout/policy gradient (for generator)
-	#alpha hyperparam
-
-	G_loss, G_update = G.policy_grad_update()
-
 	#################################################################################
 	# 						    ADVERARIAL-TRAINING 								#
 	#################################################################################
+
+	#Define Policy Gradient and RL loss (for generator)
+	G_loss, G_update = G.policy_grad_update()
 
 	for total_batch in range(TOTAL_BATCH):
         # Train the generator for one step
