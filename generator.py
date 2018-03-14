@@ -42,6 +42,21 @@ class Generator:
         self.Wo = tf.Variable(tf.random_normal([self.num_units, self.vocab_size], 0.1), name="Wo")
         self.bo = tf.Variable(tf.random_normal([self.vocab_size], 0.1), name="Wo")
 
+    def generate_examples(self, start_index = 0):
+        output = tf.zeros([64, self.embedding_size])
+        outputs = []
+        m = 64
+        c_state = tf.zeros([m, self.lstm.state_size[0]])
+        m_state = tf.zeros([m, self.lstm.state_size[1]])
+        state = (c_state, m_state)
+        for t in range(self.seq_length):
+            output, state = self.lstm(output, state)
+            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            max_index = tf.argmax(z, axis=1)
+            output = tf.nn.embedding_lookup(self.G_embed, [max_index])[0]
+            outputs.append(output)
+        return tf.stack(outputs)
+
     def forward_propagation(self):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X = tf.transpose(embedded_words, perm=(1,0,2))
@@ -53,6 +68,8 @@ class Generator:
         outputs = []
 
         for t in range(self.seq_length):
+            if t == 0:
+                print(X[t, :, :].shape)
             output, state = self.lstm(X[t, :, :], state)
             z = tf.matmul(output, self.Wo) + self.bo
             outputs.append(z)
@@ -164,21 +181,24 @@ class Generator:
 
 hparams = {
     "seq_length": 30,
-    "embedding_size": 100,
+    "embedding_size": 5,
     "vocab_size": 5002,
-    "num_units": 300,
+    "num_units": 100,
     "learning_rate": 1e-2,
     "num_epochs": 10,
-    "minibatch_size": 500
+    "minibatch_size": 50
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:100000]
-X_test = X[100000:101000]
+X_train = X[:1000]
+X_test = X[1000:1100]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
 
 G.train(X_train, Y_train, X_test, Y_test)
+
+print G.generate_examples(0)
+
