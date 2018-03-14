@@ -32,8 +32,13 @@ class Generator:
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
         self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
+        #embedding layer
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
+        #RNN cell
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
+        #Output layer
+        self.Wo = tf.Variable(tf.random_normal([self.num_units, self.vocab_size], 0.1), name="Wo")
+        self.bo = tf.Variable(tf.random_normal([self.vocab_size], 0.1), name="Wo")
 
     def generate_examples(self, start_index = 0):
         initial_output = np.zeros((64, self.embedding_size))
@@ -65,7 +70,7 @@ class Generator:
 
         for t in range(self.seq_length):
             output, state = self.lstm(X[t, :, :], state)
-            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            z = tf.matmul(output, self.Wo) + self.bo
             outputs.append(z)
 
         return tf.stack(outputs)
@@ -107,7 +112,7 @@ class Generator:
                     minibatch_cost += temp_cost / num_minibatches
 
                 if epoch % 2 == 0:
-                    print("Cost after epoch", epoch, minibatch_cost)
+                    print "Cost after epoch" + str(epoch) + ':' + str(minibatch_cost)
 
                 costs.append(minibatch_cost)
 
@@ -121,31 +126,51 @@ class Generator:
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             print("Accuracy:", accuracy)
 
-            train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
-            print(train_accuracy)
-            test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
-            print("Train Accuracy:", train_accuracy)
-            print("Test Accuracy:", test_accuracy)
-            
+            train_cost = 0
+            train_batches = nn_tools.random_mini_batches(X_train, Y_train, self.minibatch_size, seed)
+            num_train_minibatches = len(train_batches)
+            for tb in train_batches:
+                (mb_x, mb_y) = tb
+                train_accuracy = self.sess.run(accuracy,{self.X: mb_x, self.Y: mb_y})
+                train_cost += train_accuracy / num_train_minibatches
+            print("Train Accuracy:", train_cost)
+
+            test_cost = 0
+            test_batches = nn_tools.random_mini_batches(X_test, Y_test, self.minibatch_size, seed)
+            num_test_minibatches = len(test_batches)
+            for test_mb in test_batches:
+                (tmb_x, tmb_y) = test_mb
+                test_accuracy = self.sess.run(accuracy,{self.X: tmb_x, self.Y: tmb_y})
+                test_cost += test_accuracy / num_test_minibatches
+            print("Test Accuracy:", test_cost)
+
+            # test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
+            # print("Train Accuracy:", train_accuracy)
+            # print("Test Accuracy:", test_accuracy)
+
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
-    def update(self, initial_state):
-        pass
-        numpy_state = initial_state.eval()
+    def adversarial_loss(self, rewards):
+        probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
+        loss = -tf.reduce_sum(
+            tf.reduce_sum(
+                tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0) * tf.log(
+                    tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0)
+                ), 1
+            ) * tf.reshape(rewards, [-1])
+        )
+        return loss
 
-        total_loss = 0.0
-        for current_batch_of_words in words_in_dataset:
-            numpy_state, current_loss = session.run([final_state, loss],
-            # Initialize the LSTM state from the previous iteration.
-            feed_dict={initial_state: numpy_state, words: current_batch_of_words})
+    def policy_grad_update(self, rewards):
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        loss = self.adversarial_loss(rewards)
 
-        total_loss += current_loss
+        grads_and_params = optimizer.compute_gradients(loss)
+        (grads, params) = np.transpose(grads_and_params).tolist()
 
-    def get_reward(self, sess, input_x, rollout_num, discriminator):
-        #TODO
-        #X should be of shape (N, 30, 5002)
-        # go through each N, sum prediction from discriminator
-        reward = discriminator.predict(X)
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
+
+        return optimizer.apply_gradients(zip(grads, params))
 
     # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
 
@@ -154,19 +179,19 @@ class Generator:
 
 hparams = {
     "seq_length": 30,
-    "embedding_size": 5,
+    "embedding_size": 100,
     "vocab_size": 5002,
-    "num_units": 100,
-    "learning_rate": 1e-4,
-    "num_epochs": 30,
-    "minibatch_size": 1000
+    "num_units": 300,
+    "learning_rate": 1e-2,
+    "num_epochs": 10,
+    "minibatch_size": 500
 }
 
 G = Generator(hparams)
 X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:5000]
-X_test = X[5000:6000]
+X_train = X[:100000]
+X_test = X[100000:101000]
 
 Y_train = G.one_hot(X_train)
 Y_test = G.one_hot(X_test)
