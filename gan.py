@@ -10,16 +10,16 @@ G_HIDDEN_UNITS = 100 # hidden state dimension of lstm cell
 SEQ_LENGTH = 30 # sequence length
 START_TOKEN = 0
 G_EPOCH_NUM = 10 # supervise (maximum likelihood estimation) epochs
-G_LEARNING_RATE = 1e-5
-G_BATCH_SIZE = 64
+G_LEARNING_RATE = 1e-2
+G_BATCH_SIZE = 50
 VOCAB_SIZE = 5002
 
 #DISCRIMINATOR HYPERPARAMETERS
-dis_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]
-dis_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100, 160, 160]
+D_FILTER_SIZES = [1, 2]
+D_NUM_FILTERS = [1, 2]
 D_EPOCH_NUM = 100
-D_BATCH_SIZE= 500
-D_LEARNING_RATE = 1e-7
+D_BATCH_SIZE= 50
+D_LEARNING_RATE = 1e-2
 D_HIDDEN_UNITS = 10
 
 TOTAL_BATCH = 5
@@ -27,14 +27,14 @@ TOTAL_BATCH = 5
 def split_data(X, Y):
 	m = X.shape[0]
 	permutation = list(np.random.permutation(m))
-	X = X[permutation, :]
-	Y = Y[permutation, :]
+	X_p = X[permutation, :]
+	Y_p = Y[permutation, :]
 
-	X_train = X[:1000]
-	X_test = X[1000:]
+	X_train = X_p[:1000]
+	X_test = X_p[1000:1100]
 
-	Y_train = Y[:1000]
-	Y_test = Y[1000:]
+	Y_train = Y_p[:1000]
+	Y_test = Y_p[1000:1100]
 
 	return X_train, X_test, Y_train, Y_test
 
@@ -99,8 +99,8 @@ def main():
                     "seq_length": SEQ_LENGTH,
                     "embedding_size": EMB_DIM,
                     "vocab_size": VOCAB_SIZE,
-                    "filter_sizes": [1, 2],
-                    "num_filters": [1, 2],
+                    "filter_sizes": D_FILTER_SIZES,
+                    "num_filters": D_NUM_FILTERS,
                     "fully_connected_size": D_HIDDEN_UNITS,
                     "learning_rate": D_LEARNING_RATE,
                     "num_epochs": D_EPOCH_NUM,
@@ -133,7 +133,7 @@ def main():
     print("Started pre-training G.")
     G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
     print("Finished training G. Started pre-training D.")
-    D.train(D_X_train, D_Y_train, D_X_test, D_Y_test)
+    D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
     print("Finished training D")
 
 	#################################################################################
