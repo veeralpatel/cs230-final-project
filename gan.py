@@ -64,13 +64,13 @@ def get_reward(samples, rollout_num, D, G):
     return rewards
 
 def print_samples(samples, id_to_word):
-    m, seq_length = samples.shape
-    for i in range(m):
-        sentence = []
-        for t in range(seq_length):
-            index = samples[i][t]
-            sentence.append(id_to_word[index])
-        print(' '.join(sentence))
+    # m, seq_length = samples.shape
+    # for i in range(m):
+    sentence = []
+    for t in range(seq_length):
+        index = samples[i][t]
+        sentence.append(id_to_word[index])
+    print(' '.join(sentence))
 
 def gen_pos_batch(pos_samples, batch_size):
     m = pos_samples.shape[0]
