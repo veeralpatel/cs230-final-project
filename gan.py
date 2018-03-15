@@ -150,7 +150,7 @@ def main():
         # Train the generator for one step
         samples = G.generate_examples(G_BATCH_SIZE)
         rewards = get_reward(samples, 16, D, G)
-        _, loss = sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
+        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
 
         print "Done training G. Loss: %d" % loss
         # Test
