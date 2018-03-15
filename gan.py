@@ -11,7 +11,8 @@ SEQ_LENGTH = 30 # sequence length
 START_TOKEN = 0
 G_EPOCH_NUM = 10 # supervise (maximum likelihood estimation) epochs
 G_LEARNING_RATE = 1e-2
-G_BATCH_SIZE = 50
+G_PRE_BATCH_SIZE = 50
+G_SAMPLE_SIZE = 50
 VOCAB_SIZE = 5002
 
 #DISCRIMINATOR HYPERPARAMETERS
@@ -21,6 +22,7 @@ D_EPOCH_NUM = 100
 D_BATCH_SIZE= 50
 D_LEARNING_RATE = 1e-2
 D_HIDDEN_UNITS = 10
+D_ADV_BATCH_SIZE = 50
 
 TOTAL_BATCH = 5
 
@@ -64,13 +66,13 @@ def get_reward(samples, rollout_num, D, G):
     return rewards
 
 def print_samples(samples, id_to_word):
-    # m, seq_length = samples.shape
-    # for i in range(m):
-    sentence = []
-    for t in range(len(samples)):
-        index = samples[t]
-        sentence.append(id_to_word[index])
-    print(' '.join(sentence))
+    m, seq_length = samples.shape
+    for i in range(m):
+        sentence = []
+        for t in range(seq_length):
+            index = samples[t]
+            sentence.append(id_to_word[index])
+        print(' '.join(sentence))
 
 def gen_pos_batch(pos_samples, batch_size):
     m = pos_samples.shape[0]
@@ -91,7 +93,8 @@ def main():
                     "num_units": G_HIDDEN_UNITS,
                     "learning_rate": G_LEARNING_RATE,
                     "num_epochs": G_EPOCH_NUM,
-                    "minibatch_size": G_BATCH_SIZE
+                    "minibatch_size": G_PRE_BATCH_SIZE,
+                    "sampling_size": G_SAMPLE_SIZE
                 }
 
     D_hparams = {
@@ -141,8 +144,10 @@ def main():
 	#################################################################################
 
 	#Define Policy Gradient and RL loss (for generator)
-    #G_loss, G_update = G.policy_grad_update()
+    #Update D hyperparameters for adversarial training
     G_loss, G_update = G.adv_loss, G.pg_update
+    D.num_epochs = 3
+    D.minibatch_size = D_ADV_BATCH_SIZE
 
     print("Started adversarial training")
 
@@ -163,15 +168,14 @@ def main():
         # Train the discriminator
         for _ in range(5):
             samples = G.sess.run(G.gen_examples)
-            pos = gen_pos_batch(D_pos, G_BATCH_SIZE)
+            pos = gen_pos_batch(D_pos, G_SAMPLE_SIZE)
 
-            y_neg = np.tile(np.array([0,1]), (G_BATCH_SIZE, 1))
-            y_pos = np.tile(np.array([1,0]), (G_BATCH_SIZE, 1))
+            y_neg = np.tile(np.array([0,1]), (G_SAMPLE_SIZE, 1))
+            y_pos = np.tile(np.array([1,0]), (G_SAMPLE_SIZE, 1))
 
             X_train = np.concatenate((samples, pos))
             Y_train = np.concatenate((y_neg, y_pos))
 
-            D.num_epochs = 3
             D.train(X_train, Y_train, None, None, restart=False, report=False)
 
         print "Done training D."
