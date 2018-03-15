@@ -20,6 +20,7 @@ class Generator:
         self.learning_rate = hparams["learning_rate"]
         self.num_epochs = hparams["num_epochs"]
         self.minibatch_size = hparams["minibatch_size"]
+        self.sampling_size = hparams["sampling_size"]
 
     def one_hot(self, X):
         m = X.shape[0]
@@ -94,8 +95,9 @@ class Generator:
         self.sess = tf.Session(config = config)
 
         self.adv_loss, self.pg_update = self.policy_grad_update()
-        self.gen_examples = self.generate_examples(self.minibatch_size)
-        self.rollouts = [None] + [self.rollout(t) for t in range(1, self.seq_length)]
+        #self.gen_examples = self.generate_examples(self.sampling_size)
+        self.gen_examples = self.rollout(0)
+        self.rollouts = [self.gen_examples] + [self.rollout(t) for t in range(1, self.seq_length)]
 
         self.init = tf.global_variables_initializer()
         self.sess.run(self.init)
@@ -177,7 +179,7 @@ class Generator:
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X_emb = tf.transpose(embedded_words, perm=(1,0,2))
         X = tf.transpose(self.X)
-        m = tf.shape(X_emb)[1]
+        m = tf.shape(X_emb)[1] if start_t > 0 else self.sampling_size
 
         a0 = tf.zeros([m, self.lstm.state_size[0]]) #activation
         m0 = tf.zeros([m, self.lstm.state_size[1]]) #memory cell
