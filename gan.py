@@ -70,7 +70,7 @@ def print_samples(samples, id_to_word):
     for i in range(m):
         sentence = []
         for t in range(seq_length):
-            index = samples[t]
+            index = samples[i][t]
             sentence.append(id_to_word[index])
         print(' '.join(sentence))
 
@@ -158,12 +158,12 @@ def main():
         rewards = get_reward(samples, 16, D, G)
         _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
 
-        print "Done training G. Loss: %d" % loss
+        print "Done training G. Loss: %s" % str(loss)
 
         # Test
         if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
             samples = G.sess.run(G.gen_examples)
-            print_samples(samples[0], index_to_word)
+            print_samples(samples, index_to_word)
 
         # Train the discriminator
         for _ in range(5):
