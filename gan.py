@@ -22,6 +22,7 @@ D_EPOCH_NUM = 100
 D_BATCH_SIZE= 50
 D_LEARNING_RATE = 1e-2
 D_HIDDEN_UNITS = 10
+D_ADV_BATCH_SIZE = 50
 
 TOTAL_BATCH = 5
 
@@ -143,8 +144,10 @@ def main():
 	#################################################################################
 
 	#Define Policy Gradient and RL loss (for generator)
-    #G_loss, G_update = G.policy_grad_update()
+    #Update D hyperparameters for adversarial training
     G_loss, G_update = G.adv_loss, G.pg_update
+    D.num_epochs = 3
+    D.minibatch_size = D_ADV_BATCH_SIZE
 
     print("Started adversarial training")
 
@@ -173,7 +176,6 @@ def main():
             X_train = np.concatenate((samples, pos))
             Y_train = np.concatenate((y_neg, y_pos))
 
-            D.num_epochs = 3
             D.train(X_train, Y_train, None, None, restart=False, report=False)
 
         print "Done training D."
