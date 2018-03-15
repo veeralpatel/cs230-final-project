@@ -32,8 +32,32 @@ class Generator:
     def initialize_parameters(self):
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
         self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
+        self.rewards = tf.placeholder(tf.float32, [None, self.seq_length], name="rewards")
+
+        #embedding layer
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
+        #RNN cell
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
+        #Output layer
+        self.Wo = tf.Variable(tf.random_normal([self.num_units, self.vocab_size], 0.1), name="Wo")
+        self.bo = tf.Variable(tf.random_normal([self.vocab_size], 0.1), name="Wo")
+
+    def generate_examples(self, m):
+        output = tf.zeros([m, self.embedding_size])
+        outputs = []
+
+        c_state = tf.zeros([m, self.lstm.state_size[0]])
+        m_state = tf.zeros([m, self.lstm.state_size[1]])
+        state = (c_state, m_state)
+        for t in range(self.seq_length):
+            output, state = self.lstm(output, state)
+            z = tf.nn.softmax(self.output_layer(output))
+            max_index = tf.argmax(z, axis=1)
+            output = tf.nn.embedding_lookup(self.G_embed, [max_index])[0]
+            outputs.append(max_index)
+
+        examples = tf.stack(outputs)
+        return self.sess.run(examples)
 
     def forward_propagation(self):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
@@ -46,8 +70,8 @@ class Generator:
         outputs = []
 
         for t in range(self.seq_length):
-            output, state = self.lstm(X[t, :, :], state)
-            z = tf.contrib.layers.fully_connected(output, self.vocab_size, activation_fn=tf.nn.relu)
+            a, state = self.lstm(X[t, :, :], state)
+            z = self.output_layer(a)
             outputs.append(z)
 
         return tf.stack(outputs)
@@ -56,9 +80,6 @@ class Generator:
         self.labels = tf.transpose(self.Y, perm=(1,0,2))
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.labels))
         return cost
-
-    def rollout(self):
-        pass
 
     def train(self, X_train, Y_train, X_test, Y_test):
         self.initialize_parameters()
@@ -77,7 +98,6 @@ class Generator:
             seed = 1
             self.sess.run(self.init)
 
-            print("Starting training")
             for epoch in range(self.num_epochs):
                 minibatch_cost = 0.
                 seed += 1
@@ -89,7 +109,7 @@ class Generator:
                     minibatch_cost += temp_cost / num_minibatches
 
                 if epoch % 2 == 0:
-                    print("Cost after epoch", epoch, minibatch_cost)
+                    print "Cost after epoch" + str(epoch) + ':' + str(minibatch_cost)
 
                 costs.append(minibatch_cost)
 
@@ -127,46 +147,82 @@ class Generator:
 
             # return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
-    def update(self, initial_state):
-        pass
-        numpy_state = initial_state.eval()
+    def adversarial_loss(self):
+        probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
+        loss = tf.reduce_sum( tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0) 
+                * tf.log( tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0) ), 1) 
+        b = tf.reshape(self.rewards, [-1])
+        loss = -tf.reduce_sum(loss * b)
+        return loss
 
-        total_loss = 0.0
-        for current_batch_of_words in words_in_dataset:
-            numpy_state, current_loss = session.run([final_state, loss],
-            # Initialize the LSTM state from the previous iteration.
-            feed_dict={initial_state: numpy_state, words: current_batch_of_words})
+    def policy_grad_update(self):
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        loss = self.adversarial_loss()
 
-        total_loss += current_loss
+        grads_and_params = optimizer.compute_gradients(loss)
+        (grads, params) = np.transpose(grads_and_params).tolist()
 
-    def get_reward(self, sess, input_x, rollout_num, discriminator):
-        #TODO
-        #X should be of shape (N, 30, 5002)
-        # go through each N, sum prediction from discriminator
-        reward = discriminator.predict(X)
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
+
+        return loss, optimizer.apply_gradients(zip(grads, params))
+
+
+    def rollout(self, start_t):
+        embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
+        X = tf.transpose(embedded_words, perm=(1,0,2))
+        m = tf.shape(X)[1]
+
+        a0 = tf.zeros([m, self.lstm.state_size[0]]) #activation
+        m0 = tf.zeros([m, self.lstm.state_size[1]]) #memory cell
+        xt = tf.zeros([m, self.embedding_size])
+
+        state = (a0, m0)
+        outputs = []
+        t = 0
+        while t < start_t:
+            _, state = self.lstm(xt, state)
+            xt = X[t, :, :]
+            outputs.append(xt)
+            t += 1
+
+        while t < self.seq_length:
+            a, state = self.lstm(xt, state)
+            z = tf.nn.softmax(self.output_layer(a))
+            next_token = tf.reshape(tf.multinomial(tf.log(z), 1), [m])
+            xt = tf.nn.embedding_lookup(self.G_embed, tf.cast(next_token, tf.int32))
+            outputs.append(xt)
+            t += 1
+
+        return tf.stack(outputs)
+
+    def output_layer(self, a):
+        return tf.matmul(a, self.Wo) + self.bo
+
 
     # def report_accuracy(self, X_train, Y_train, X_test, Y_test):
 
 
     #     return train_accuracy, test_accuracy
 
-hparams = {
-    "seq_length": 30,
-    "embedding_size": 100,
-    "vocab_size": 5002,
-    "num_units": 300,
-    "learning_rate": 1e-2,
-    "num_epochs": 10,
-    "minibatch_size": 500
-}
+# hparams = {
+#     "seq_length": 30,
+#     "embedding_size": 5,
+#     "vocab_size": 5002,
+#     "num_units": 100,
+#     "learning_rate": 1e-2,
+#     "num_epochs": 10,
+#     "minibatch_size": 50
+# }
 
-G = Generator(hparams)
-X = pickle.load(open('train_x.pkl', 'rb'))
+# G = Generator(hparams)
+# X = pickle.load(open('train_x.pkl', 'rb'))
 
-X_train = X[:100000]
-X_test = X[100000:101000]
+# X_train = X[:1000]
+# X_test = X[1000:1100]
 
-Y_train = G.one_hot(X_train)
-Y_test = G.one_hot(X_test)
+# Y_train = G.one_hot(X_train)
+# Y_test = G.one_hot(X_test)
 
-G.train(X_train, Y_train, X_test, Y_test)
+# G.train(X_train, Y_train, X_test, Y_test)
+
+# print G.generate_examples(0)

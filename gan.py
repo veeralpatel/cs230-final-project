@@ -1,144 +1,179 @@
-import tensorflow as tf 
-from discriminator import DISCRIMINATOR
-from generator import GENERATOR
-import generator
+import tensorflow as tf
+from discriminator import Discriminator
+from generator import Generator
 import pickle
+import numpy as np
 
 #GENERATOR HYPERPARAMETERS
 EMB_DIM = 5 # embedding dimension
-HIDDEN_DIM = 32 # hidden state dimension of lstm cell
+G_HIDDEN_UNITS = 100 # hidden state dimension of lstm cell
 SEQ_LENGTH = 30 # sequence length
 START_TOKEN = 0
-PRE_EPOCH_NUM = 120 # supervise (maximum likelihood estimation) epochs
-SEED = 88
-BATCH_SIZE = 64
+G_EPOCH_NUM = 10 # supervise (maximum likelihood estimation) epochs
+G_LEARNING_RATE = 1e-2
+G_BATCH_SIZE = 50
+VOCAB_SIZE = 5002
 
 #DISCRIMINATOR HYPERPARAMETERS
-dis_embedding_dim = 5
-dis_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]
-dis_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100, 160, 160]
-dis_dropout_keep_prob = 0.75
-dis_l2_reg_lambda = 0.2
-dis_batch_size = 64
+D_FILTER_SIZES = [1, 2]
+D_NUM_FILTERS = [1, 2]
+D_EPOCH_NUM = 100
+D_BATCH_SIZE= 50
+D_LEARNING_RATE = 1e-2
+D_HIDDEN_UNITS = 10
 
-
+TOTAL_BATCH = 5
 
 def split_data(X, Y):
 	m = X.shape[0]
 	permutation = list(np.random.permutation(m))
-	X = X[permutation, :]
-	Y = Y[permutation, :].reshape((m,2))
+	X_p = X[permutation, :]
+	Y_p = Y[permutation, :]
 
-	X_train = X[:288700]
-	X_test = X[288700:]
+	X_train = X_p[:1000]
+	X_test = X_p[1000:1100]
 
-	Y_train = Y[:288700]
-	Y_test = Y[288700:]
+	Y_train = Y_p[:1000]
+	Y_test = Y_p[1000:1100]
 
 	return X_train, X_test, Y_train, Y_test
+
+def get_reward(samples, rollout_num, D, G):
+    rewards = []
+    for i in range(rollout_num):
+        for given_num in range(1, SEQ_LENGTH):
+            gen_samples = G.rollout(given_num)
+            samples = G.sess.run(gen_samples, feed_dict={G.X: samples})
+            feed = {D.X: samples}
+            ypred_for_auc = D.sess.run(tf.nn.softmax(D.Z4), feed)
+            ypred = np.array([item[0] for item in ypred_for_auc])
+            if i == 0:
+                rewards.append(ypred)
+            else:
+                rewards[given_num - 1] += ypred
+
+        # the last token reward
+        feed = {D.X: samples}
+        ypred_for_auc = D.sess.run(tf.nn.softmax(D.Z4), feed)
+        ypred = np.array([item[0] for item in ypred_for_auc])
+        if i == 0:
+            rewards.append(ypred)
+        else:
+            rewards[SEQ_LENGTH-1] += ypred
+
+    rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
+    return rewards
+
+def print_samples(samples, id_to_word):
+    m, seq_length = samples.shape
+    for i in range(m):
+        sentence = []
+        for t in range(seq_length):
+            index = samples[i][t]
+            sentence.append(id_to_word[index]) 
+        print(' '.join(sentence)) 
+
+def gen_pos_batch(pos_samples, batch_size):
+    m = pos_samples.shape[0]
+    permutation = list(np.random.permutation(m))[:batch_size]
+    return pos_samples[permutation, :]
 
 def main():
 	#potential seeding here
 
+	#################################################################################
+	# 								INITIALIZATION 									#
+	#################################################################################
+
+    G_hparams = {
+                    "seq_length": SEQ_LENGTH,
+                    "embedding_size": EMB_DIM,
+                    "vocab_size": VOCAB_SIZE,
+                    "num_units": G_HIDDEN_UNITS,
+                    "learning_rate": G_LEARNING_RATE,
+                    "num_epochs": G_EPOCH_NUM,
+                    "minibatch_size": G_BATCH_SIZE
+                }
+
+    D_hparams = {
+                    "seq_length": SEQ_LENGTH,
+                    "embedding_size": EMB_DIM,
+                    "vocab_size": VOCAB_SIZE,
+                    "filter_sizes": D_FILTER_SIZES,
+                    "num_filters": D_NUM_FILTERS,
+                    "fully_connected_size": D_HIDDEN_UNITS,
+                    "learning_rate": D_LEARNING_RATE,
+                    "num_epochs": D_EPOCH_NUM,
+                    "minibatch_size": D_BATCH_SIZE
+            	}
+
+    index_to_word = pickle.load(open('id_to_word.pkl'))
+
+    G = Generator(G_hparams)
+    D = Discriminator(D_hparams)
+
+    G_X = pickle.load(open('train_x.pkl', 'rb'))
+
+    D_X = pickle.load(open('train_x.pkl', 'rb'))
+    D_Y = pickle.load(open('train_y.pkl', 'rb'))
 
 
-    hparams = {
-        "seq_length": 30,
-        "embedding_size": 5,
-        "vocab_size": 5002,
-        "num_units": 100,
-        "learning_rate": 1e-5,
-        "num_epochs": 10
-    }
-    G = Generator(hparams)
+	#################################################################################
+	# 								PRE-TRAINING 									#
+	#################################################################################
 
-    X = pickle.load(open('train_x.pkl', 'rb'))
+    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(G_X, G_X)
+    G_Y_train = G.one_hot(G_Y_train)
+    G_Y_test = G.one_hot(G_Y_test)
 
-    X_train = X[:90000]
-    X_test = X[90000:100000]
+	#TODO: Add generator samples into D_X_train (?)
+    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X, D_Y)
+    D_pos = D_X[:277036]
 
-    Y_train = G.one_hot(X_train)
-    Y_test = G.one_hot(X_test)
+    print("Started pre-training G.")
+    G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
+    print("Finished training G. Started pre-training D.")
+    D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
+    print("Finished training D")
 
-    G.train(X_train, Y_train, X_test, Y_test)
+	#################################################################################
+	# 						    ADVERARIAL-TRAINING 								#
+	#################################################################################
 
+	#Define Policy Gradient and RL loss (for generator)
+    G_loss, G_update = G.policy_grad_update()
 
-    index_to_int = pickle.load(open('id_to_word.pkl'))
+    print("Started adversarial training")
 
-
-	hparams = {
-            "seq_length": SEQ_LENGTH,
-            "embedding_size": EMB_DIM,
-            "vocab_size": 5002,
-            "filter_sizes": [1, 2],
-            "num_filters": [1, 2],
-            "fully_connected_size": 5,
-            "learning_rate": 1e-5,
-            "num_epochs": 100,
-            "minibatch_size": 500
-          }
-
-	D = Discriminator(hparams)
-	X = pickle.load(open('train_x.pkl', 'rb'))
-	Y = pickle.load(open('train_y.pkl', 'rb'))
-	X_train, X_test, Y_train, Y_test = split_data(X, Y)
-
-
-	
-
-
-
-	#Pretrain Discriminator
-
-
-
-	#define rollout/policy gradient (for generator)
-	#alpha hyperparam
-
-
-	#Adversarial Training
-
-	for total_batch in range(TOTAL_BATCH):
+    for total_batch in range(TOTAL_BATCH):
+        print "Total batch: %d" % total_batch
         # Train the generator for one step
-        for it in range(1):
-            samples = generator.generate(sess)
-            rewards = rollout.get_reward(sess, samples, 16, discriminator)
-            feed = {generator.x: samples, generator.rewards: rewards}
-            _ = sess.run(generator.g_updates, feed_dict=feed)
+        samples = G.generate_examples(G_BATCH_SIZE)
+        rewards = get_reward(samples, 16, D, G)
+        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
 
+        print "Done training G. Loss: %d" % loss
         # Test
         if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
-            generate_samples(sess, generator, BATCH_SIZE, generated_num, eval_file)
-            likelihood_data_loader.create_batches(eval_file)
-            test_loss = target_loss(sess, target_lstm, likelihood_data_loader)
-            buffer = 'epoch:\t' + str(total_batch) + '\tnll:\t' + str(test_loss) + '\n'
-            print 'total_batch: ', total_batch, 'test_loss: ', test_loss
-            log.write(buffer)
-
-        # Update roll-out parameters
-        #rollout.update_params()
+            samples = G.generate_examples(G_BATCH_SIZE)
+            print_samples(samples)
 
         # Train the discriminator
         for _ in range(5):
-            generate_samples(sess, generator, BATCH_SIZE, generated_num, negative_file)
-            dis_data_loader.load_train_data(positive_file, negative_file)
+            samples = G.generate_examples(G_BATCH_SIZE)
+            pos = gen_pos_batch(D_pos, G_BATCH_SIZE) 
 
-            for _ in range(3):
-                dis_data_loader.reset_pointer()
-                for it in xrange(dis_data_loader.num_batch):
-                    x_batch, y_batch = dis_data_loader.next_batch()
-                    feed = {
-                        discriminator.input_x: x_batch,
-                        discriminator.input_y: y_batch,
-                        discriminator.dropout_keep_prob: dis_dropout_keep_prob
-                    }
-                    _ = sess.run(discriminator.train_op, feed)
+            y_neg = np.array([[0,1]*G_BATCH_SIZE])
+            y_pos = np.array([[1,0]*G_BATCH_SIZE])
 
+            X_train = np.concatenate((samples, pos))
+            Y_train = np.concatenate((y_neg, y_pos))
 
+            D.num_epochs = 3
+            D.train(X_train, Y_train, None, None, restart=False, report=False)
+
+        print "Done training D."
 
 
-
-
-
-
-
+if __name__=="__main__":
+    main()
