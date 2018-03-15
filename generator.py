@@ -45,10 +45,10 @@ class Generator:
     def generate_examples(self, m):
         output = tf.zeros([m, self.embedding_size])
         outputs = []
-
         c_state = tf.zeros([m, self.lstm.state_size[0]])
         m_state = tf.zeros([m, self.lstm.state_size[1]])
         state = (c_state, m_state)
+
         for t in range(self.seq_length):
             output, state = self.lstm(output, state)
             z = tf.nn.softmax(self.output_layer(output))
@@ -57,22 +57,25 @@ class Generator:
             outputs.append(max_index)
 
         examples = tf.stack(outputs)
-        return self.sess.run(examples)
+        return tf.transpose(examples)
 
     def forward_propagation(self):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X = tf.transpose(embedded_words, perm=(1,0,2))
         m = tf.shape(X)[1]
 
-        c_state = tf.zeros([m, self.lstm.state_size[0]])
-        m_state = tf.zeros([m, self.lstm.state_size[1]])
-        state = (c_state, m_state)
+        a0 = tf.zeros([m, self.lstm.state_size[0]]) #activation
+        m0 = tf.zeros([m, self.lstm.state_size[1]]) #memory cell
+        xt = tf.zeros([m, self.embedding_size])
+
+        state = (a0, m0)
         outputs = []
 
         for t in range(self.seq_length):
-            a, state = self.lstm(X[t, :, :], state)
+            a, state = self.lstm(xt, state)
             z = self.output_layer(a)
             outputs.append(z)
+            xt = X[t, :, :]
 
         return tf.stack(outputs)
 
@@ -81,23 +84,27 @@ class Generator:
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.labels))
         return cost
 
-    def train(self, X_train, Y_train, X_test, Y_test):
+    def build_graph(self):
         self.initialize_parameters()
         self.out = self.forward_propagation()
         self.cost = self.compute_cost()
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
 
-        self.init = tf.global_variables_initializer()
-
         config = tf.ConfigProto(allow_soft_placement = True)
         self.sess = tf.Session(config = config)
 
+        self.adv_loss, self.pg_update = self.policy_grad_update()
+        self.gen_examples = self.generate_examples(self.minibatch_size)
+        self.rollouts = [None] + [self.rollout(t) for t in range(1, self.seq_length)]
+
+        self.init = tf.global_variables_initializer()
+        self.sess.run(self.init)
+
+    def train(self, X_train, Y_train, X_test, Y_test):
+        costs = []
+        seed = 1
         with tf.device('/device:GPU:0'):
         # with tf.device('/device:CPU:0'):
-            costs = []
-            seed = 1
-            self.sess.run(self.init)
-
             for epoch in range(self.num_epochs):
                 minibatch_cost = 0.
                 seed += 1
@@ -149,8 +156,8 @@ class Generator:
 
     def adversarial_loss(self):
         probs = tf.transpose(tf.nn.softmax(self.out), perm=[1,0,2]) # (T_x, m, V) -> (m, T_x, V)
-        loss = tf.reduce_sum( tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0) 
-                * tf.log( tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0) ), 1) 
+        loss = tf.reduce_sum( tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0)
+                * tf.log( tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0) ), 1)
         b = tf.reshape(self.rewards, [-1])
         loss = -tf.reduce_sum(loss * b)
         return loss
@@ -166,11 +173,11 @@ class Generator:
 
         return loss, optimizer.apply_gradients(zip(grads, params))
 
-
     def rollout(self, start_t):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
-        X = tf.transpose(embedded_words, perm=(1,0,2))
-        m = tf.shape(X)[1]
+        X_emb = tf.transpose(embedded_words, perm=(1,0,2))
+        X = tf.transpose(self.X)
+        m = tf.shape(X_emb)[1]
 
         a0 = tf.zeros([m, self.lstm.state_size[0]]) #activation
         m0 = tf.zeros([m, self.lstm.state_size[1]]) #memory cell
@@ -181,19 +188,20 @@ class Generator:
         t = 0
         while t < start_t:
             _, state = self.lstm(xt, state)
-            xt = X[t, :, :]
-            outputs.append(xt)
+            xt = X_emb[t, :, :]
+            outputs.append(X[t, :])
             t += 1
 
         while t < self.seq_length:
             a, state = self.lstm(xt, state)
             z = tf.nn.softmax(self.output_layer(a))
-            next_token = tf.reshape(tf.multinomial(tf.log(z), 1), [m])
-            xt = tf.nn.embedding_lookup(self.G_embed, tf.cast(next_token, tf.int32))
-            outputs.append(xt)
+            next_token = tf.cast(tf.reshape(tf.multinomial(tf.log(z), 1), [m]), tf.int32)
+            xt = tf.nn.embedding_lookup(self.G_embed, next_token)
+            outputs.append(next_token)
             t += 1
 
-        return tf.stack(outputs)
+        out = tf.stack(outputs)
+        return tf.transpose(out)
 
     def output_layer(self, a):
         return tf.matmul(a, self.Wo) + self.bo
@@ -204,25 +212,30 @@ class Generator:
 
     #     return train_accuracy, test_accuracy
 
-# hparams = {
-#     "seq_length": 30,
-#     "embedding_size": 5,
-#     "vocab_size": 5002,
-#     "num_units": 100,
-#     "learning_rate": 1e-2,
-#     "num_epochs": 10,
-#     "minibatch_size": 50
-# }
+def main():
+    hparams = {
+        "seq_length": 30,
+        "embedding_size": 5,
+        "vocab_size": 5002,
+        "num_units": 100,
+        "learning_rate": 1e-2,
+        "num_epochs": 10,
+        "minibatch_size": 50
+    }
 
-# G = Generator(hparams)
-# X = pickle.load(open('train_x.pkl', 'rb'))
+    G = Generator(hparams)
+    X = pickle.load(open('train_x.pkl', 'rb'))
 
-# X_train = X[:1000]
-# X_test = X[1000:1100]
+    X_train = X[:1000]
+    X_test = X[1000:1100]
 
-# Y_train = G.one_hot(X_train)
-# Y_test = G.one_hot(X_test)
+    Y_train = G.one_hot(X_train)
+    Y_test = G.one_hot(X_test)
 
-# G.train(X_train, Y_train, X_test, Y_test)
+    G.train(X_train, Y_train, X_test, Y_test)
 
-# print G.generate_examples(0)
+    print G.generate_examples(5)
+
+
+if __name__=="__main__":
+    main()

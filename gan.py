@@ -41,16 +41,15 @@ def split_data(X, Y):
 def get_reward(samples, rollout_num, D, G):
     rewards = []
     for i in range(rollout_num):
-        for given_num in range(1, SEQ_LENGTH):
-            gen_samples = G.rollout(given_num)
+        for t in range(1, SEQ_LENGTH):
+            gen_samples = G.rollouts[t]
             samples = G.sess.run(gen_samples, feed_dict={G.X: samples})
-            feed = {D.X: samples}
-            ypred_for_auc = D.sess.run(tf.nn.softmax(D.Z4), feed)
+            ypred_for_auc = D.sess.run(tf.nn.softmax(D.Z4), feed_dict={D.X: samples})
             ypred = np.array([item[0] for item in ypred_for_auc])
             if i == 0:
                 rewards.append(ypred)
             else:
-                rewards[given_num - 1] += ypred
+                rewards[t - 1] += ypred
 
         # the last token reward
         feed = {D.X: samples}
@@ -70,8 +69,8 @@ def print_samples(samples, id_to_word):
         sentence = []
         for t in range(seq_length):
             index = samples[i][t]
-            sentence.append(id_to_word[index]) 
-        print(' '.join(sentence)) 
+            sentence.append(id_to_word[index])
+        print(' '.join(sentence))
 
 def gen_pos_batch(pos_samples, batch_size):
     m = pos_samples.shape[0]
@@ -131,6 +130,7 @@ def main():
     D_pos = D_X[:277036]
 
     print("Started pre-training G.")
+    G.build_graph()
     G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
     print("Finished training G. Started pre-training D.")
     D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
@@ -141,30 +141,32 @@ def main():
 	#################################################################################
 
 	#Define Policy Gradient and RL loss (for generator)
-    G_loss, G_update = G.policy_grad_update()
+    #G_loss, G_update = G.policy_grad_update()
+    G_loss, G_update = G.adv_loss, G.pg_update
 
     print("Started adversarial training")
 
     for total_batch in range(TOTAL_BATCH):
         print "Total batch: %d" % total_batch
         # Train the generator for one step
-        samples = G.generate_examples(G_BATCH_SIZE)
+        samples = G.sess.run(G.gen_examples)
         rewards = get_reward(samples, 16, D, G)
-        _, loss = sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
+        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
 
         print "Done training G. Loss: %d" % loss
+
         # Test
         if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
-            samples = G.generate_examples(G_BATCH_SIZE)
-            print_samples(samples)
+            samples = G.sess.run(G.gen_examples)
+            print_samples(samples[0], index_to_word)
 
         # Train the discriminator
         for _ in range(5):
-            samples = G.generate_examples(G_BATCH_SIZE)
-            pos = gen_pos_batch(D_pos, G_BATCH_SIZE) 
+            samples = G.sess.run(G.gen_examples)
+            pos = gen_pos_batch(D_pos, G_BATCH_SIZE)
 
-            y_neg = np.array([[0,1]*G_BATCH_SIZE])
-            y_pos = np.array([[1,0]*G_BATCH_SIZE])
+            y_neg = np.tile(np.array([0,1]), (G_BATCH_SIZE, 1))
+            y_pos = np.tile(np.array([1,0]), (G_BATCH_SIZE, 1))
 
             X_train = np.concatenate((samples, pos))
             Y_train = np.concatenate((y_neg, y_pos))
