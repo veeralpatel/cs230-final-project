@@ -67,7 +67,7 @@ def print_samples(samples, id_to_word):
     # m, seq_length = samples.shape
     # for i in range(m):
     sentence = []
-    for t in range(seq_length):
+    for t in range(len(samples)):
         index = samples[t]
         sentence.append(id_to_word[index])
     print(' '.join(sentence))
