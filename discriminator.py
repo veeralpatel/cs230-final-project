@@ -30,7 +30,7 @@ class Discriminator:
 
         self.params = {}
 
-    def train(self, X_train, Y_train, X_test, Y_test, restart=True):
+    def train(self, X_train, Y_train, X_test, Y_test, restart=True, report=False):
         if restart:
             ops.reset_default_graph()
             self.initialize_parameters()
@@ -64,13 +64,13 @@ class Discriminator:
                     print("Cost after epoch", epoch, ":", minibatch_cost)
                 costs.append(minibatch_cost)
 
+        if report:
             plt.plot(np.squeeze(costs))
             plt.ylabel('cost')
             plt.xlabel('iterations (per tens)')
             plt.title("Learning rate =" + self.learning_rate)
-            plt.show()
-
-        return self.report_accuracy(X_train, Y_train, X_test, Y_test)
+            plt.savefig('d_learning_curve')
+            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
 
     def predict(self, X_sample):
         prediction = tf.nn.softmax(self.Z4)
@@ -184,29 +184,29 @@ hparams = {
             "minibatch_size": 500
           }
 
-D = Discriminator(hparams)
-X = pickle.load(open('train_x.pkl', 'rb'))
-Y = pickle.load(open('train_y.pkl', 'rb'))
+# D = Discriminator(hparams)
+# X = pickle.load(open('train_x.pkl', 'rb'))
+# Y = pickle.load(open('train_y.pkl', 'rb'))
 
-m = X.shape[0]
-permutation = list(np.random.permutation(m))
-X = X[permutation, :]
-Y = Y[permutation, :].reshape((m,2))
+# m = X.shape[0]
+# permutation = list(np.random.permutation(m))
+# X = X[permutation, :]
+# Y = Y[permutation, :].reshape((m,2))
 
-X_train = X[11000:288700]
-X_test = X[288700:]
+# X_train = X[11000:288700]
+# X_test = X[288700:]
 
-Y_train = Y[11000:288700]
-Y_test = Y[288700:]
+# Y_train = Y[11000:288700]
+# Y_test = Y[288700:]
 
-D.train(X_train, Y_train, X_test, Y_test, hparams)
+# D.train(X_train, Y_train, X_test, Y_test, hparams)
 
 # print('Inputing')
 # print(X[288702])
 # print D.predict([X[288702]])
 
-X_train_continue = X[0:10000]
-Y_train_continue = Y[0:10000]
+# X_train_continue = X[0:10000]
+# Y_train_continue = Y[0:10000]
 
-D.train(X_train_continue, Y_train_continue, X_test, Y_test, hparams, restart=False)
+# D.train(X_train_continue, Y_train_continue, X_test, Y_test, hparams, restart=False)
 
