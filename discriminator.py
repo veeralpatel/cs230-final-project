@@ -176,7 +176,7 @@ hparams = {
             "seq_length": 30,
             "embedding_size": 5,
             "vocab_size": 5002,
-            "filter_sizes": [1, 2],
+            "filter_sizes": [1, 2, 3, 5, 8, 10, 20],
             "num_filters": [1, 2],
             "fully_connected_size": 5,
             "learning_rate": 1e-5,
