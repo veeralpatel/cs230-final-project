@@ -24,7 +24,7 @@ class Generator:
 
     def one_hot(self, X):
         m = X.shape[0]
-        one_hot_everything = np.zeros((m, 30, 5002), dtype=np.int8)
+        one_hot_everything = np.zeros((m, self.seq_length, self.vocab_size), dtype=np.int8)
         for m, array in enumerate(X):
             for i, number in enumerate(array):
                 one_hot_everything[m][i][number] = 1
