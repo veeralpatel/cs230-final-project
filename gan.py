@@ -1,4 +1,5 @@
 import tensorflow as tf
+import matplotlib.pyplot as plt
 from discriminator import Discriminator
 from generator import Generator
 import pickle
@@ -9,7 +10,7 @@ EMB_DIM = 5 # embedding dimension
 G_HIDDEN_UNITS = 100 # hidden state dimension of lstm cell
 SEQ_LENGTH = 30 # sequence length
 START_TOKEN = 0
-G_EPOCH_NUM = 10 # supervise (maximum likelihood estimation) epochs
+G_EPOCH_NUM = 5 # supervise (maximum likelihood estimation) epochs
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
 G_SAMPLE_SIZE = 50
@@ -79,8 +80,15 @@ def gen_pos_batch(pos_samples, batch_size):
     permutation = list(np.random.permutation(m))[:batch_size]
     return pos_samples[permutation, :]
 
+def format_samples(pos_samples, neg_samples, sample_size):
+    y_neg = np.tile(np.array([0,1]), (sample_size, 1))
+    y_pos = np.tile(np.array([1,0]), (sample_size, 1))
+
+    X_train = np.concatenate((neg_samples, pos_samples))
+    Y_train = np.concatenate((y_neg, y_pos))
+    return X_train, Y_train
+
 def main():
-	#potential seeding here
 
 	#################################################################################
 	# 								INITIALIZATION 									#
@@ -136,11 +144,12 @@ def main():
     G.build_graph()
     G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
     print("Finished training G. Started pre-training D.")
+    D.build_graph()
     D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
     print("Finished training D")
 
 	#################################################################################
-	# 						    ADVERARIAL-TRAINING 								#
+	# 						    ADVERSARIAL-TRAINING 								#
 	#################################################################################
 
 	#Define Policy Gradient and RL loss (for generator)
@@ -151,13 +160,15 @@ def main():
 
     print("Started adversarial training")
 
+    D_losses = []
+    G_losses = []
     for total_batch in range(TOTAL_BATCH):
         print "Total batch: %d" % total_batch
         # Train the generator for one step
         samples = G.sess.run(G.gen_examples)
         rewards = get_reward(samples, 16, D, G)
         _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
-
+        G_losses.append(loss)
         print "Done training G. Loss: %s" % str(loss)
 
         # Test
@@ -166,20 +177,41 @@ def main():
             print_samples(samples, index_to_word)
 
         # Train the discriminator
-        for _ in range(5):
+        loss = 0.0
+        X_train_full = []
+        Y_train_full = []
+        for k in range(5):
             samples = G.sess.run(G.gen_examples)
             pos = gen_pos_batch(D_pos, G_SAMPLE_SIZE)
 
-            y_neg = np.tile(np.array([0,1]), (G_SAMPLE_SIZE, 1))
-            y_pos = np.tile(np.array([1,0]), (G_SAMPLE_SIZE, 1))
+            X_train, Y_train = format_samples(samples, pos, G_SAMPLE_SIZE)
 
-            X_train = np.concatenate((samples, pos))
-            Y_train = np.concatenate((y_neg, y_pos))
+            loss += D.train(X_train, Y_train, None, None, restart=False, report=False)
+            X_train_full.append(X_train)
+            Y_train_full.append(Y_train)
 
-            D.train(X_train, Y_train, None, None, restart=False, report=False)
+        test_samples = G.sess.run(G.gen_examples)
+        pos = gen_pos_batch(D_pos, G_SAMPLE_SIZE)
+        X_test, Y_test = format_samples(samples, pos, G_SAMPLE_SIZE)
+        X_train_full = np.concatenate(X_train_full)
+        Y_train_full = np.concatenate(Y_train_full)
+        D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
+        D_losses.append(loss / 5)
         print "Done training D."
 
+    plt.subplot(1,2,1)
+    plt.plot(np.squeeze(D_losses))
+    plt.ylabel('Loss')
+    plt.xlabel('Adversarial Epochs')
+    plt.title("Discriminator")
+
+    plt.subplot(1,2,2)
+    plt.plot(np.squeeze(G_losses))
+    plt.xlabel('Adversarial Epochs')
+    plt.title("Generator")
+
+    plt.savefig('adv_learning')
 
 if __name__=="__main__":
     main()

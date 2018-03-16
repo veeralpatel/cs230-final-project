@@ -30,15 +30,28 @@ class Discriminator:
 
         self.params = {}
 
+
+    def build_graph(self):
+        ops.reset_default_graph()
+        self.initialize_parameters()
+        self.Z4 = self.forward_propagation()
+        self.cost = self.compute_cost()
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+        self.init = tf.global_variables_initializer()
+        self.sess = tf.Session()
+
+        self.correct_prediction = tf.equal(tf.argmax(self.Z4, 1), tf.argmax(self.Y, 1))
+        self.accuracy = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+
     def train(self, X_train, Y_train, X_test, Y_test, restart=True, report=False):
-        if restart:
-            ops.reset_default_graph()
-            self.initialize_parameters()
-            self.Z4 = self.forward_propagation()
-            self.cost = self.compute_cost()
-            self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
-            self.init = tf.global_variables_initializer()
-            self.sess = tf.Session()
+        # if restart:
+        #     ops.reset_default_graph()
+        #     self.initialize_parameters()
+        #     self.Z4 = self.forward_propagation()
+        #     self.cost = self.compute_cost()
+        #     self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+        #     self.init = tf.global_variables_initializer()
+        #     self.sess = tf.Session()
 
         costs = []
         seed = 1
@@ -60,7 +73,7 @@ class Discriminator:
                     _, temp_cost = self.sess.run([self.optimizer, self.cost], feed_dict={self.X: minibatch_X, self.Y: minibatch_Y})
                     minibatch_cost += temp_cost / num_minibatches
 
-                if epoch % 10 == 0:
+                if epoch % 10 == 0 and report:
                     print("Cost after epoch", epoch, ":", minibatch_cost)
                 costs.append(minibatch_cost)
 
@@ -70,7 +83,9 @@ class Discriminator:
             plt.xlabel('iterations (per tens)')
             plt.title("Learning rate = %s" % str(self.learning_rate))
             plt.savefig('d_learning_curve')
-            return self.report_accuracy(X_train, Y_train, X_test, Y_test)
+            self.report_accuracy(X_train, Y_train, X_test, Y_test)
+
+        return costs[-1]
 
     def predict(self, X_sample):
         prediction = tf.nn.softmax(self.Z4)
@@ -78,15 +93,10 @@ class Discriminator:
         return y_hat
 
     def report_accuracy(self, X_train, Y_train, X_test, Y_test):
-        correct_prediction = tf.equal(tf.argmax(self.Z4, 1), tf.argmax(self.Y, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        print("Accuracy:", accuracy)
-
-        train_accuracy = self.sess.run(accuracy,{self.X: X_train, self.Y: Y_train})
-        test_accuracy = self.sess.run(accuracy,{self.X: X_test, self.Y: Y_test})
-        print("Train Accuracy:", train_accuracy)
-        print("Test Accuracy:", test_accuracy)
-
+        train_accuracy = self.sess.run(self.accuracy,{self.X: X_train, self.Y: Y_train})
+        test_accuracy = self.sess.run(self.accuracy,{self.X: X_test, self.Y: Y_test})
+        print "Train Accuracy: %s" % str(train_accuracy)
+        print "Test Accuracy: %s" % str(test_accuracy)
         return train_accuracy, test_accuracy
 
     def initialize_parameters(self):
