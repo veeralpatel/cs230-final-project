@@ -5,6 +5,10 @@ from generator import Generator
 import pickle
 import numpy as np
 
+ID_FILENAME = 'id_to_word.pkl'
+X_FILENAME = 'train_x.pkl'
+Y_FILENAME = 'train_y.pkl'
+
 #GENERATOR HYPERPARAMETERS
 EMB_DIM = 5 # embedding dimension
 G_HIDDEN_UNITS = 100 # hidden state dimension of lstm cell
@@ -117,15 +121,15 @@ def main():
                     "minibatch_size": D_BATCH_SIZE
             	}
 
-    index_to_word = pickle.load(open('id_to_word.pkl'))
+    index_to_word = pickle.load(open(ID_FILENAME))
 
     G = Generator(G_hparams)
     D = Discriminator(D_hparams)
 
-    G_X = pickle.load(open('train_x.pkl', 'rb'))
+    G_X = pickle.load(open(X_FILENAME, 'rb'))
 
-    D_X = pickle.load(open('train_x.pkl', 'rb'))
-    D_Y = pickle.load(open('train_y.pkl', 'rb'))
+    D_X = pickle.load(open(X_FILENAME, 'rb'))
+    D_Y = pickle.load(open(Y_FILENAME, 'rb'))
 
 
 	#################################################################################
@@ -198,7 +202,7 @@ def main():
         D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
         D_losses.append(loss / 5)
-        print "Done training D."
+        print "Done training D. D's Loss: %s" % str(loss)
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
