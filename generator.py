@@ -20,7 +20,6 @@ class Generator:
         self.learning_rate = hparams["learning_rate"]
         self.num_epochs = hparams["num_epochs"]
         self.minibatch_size = hparams["minibatch_size"]
-        self.sampling_size = hparams["sampling_size"]
 
     def one_hot(self, X):
         m = X.shape[0]
@@ -34,6 +33,7 @@ class Generator:
         self.X = tf.placeholder(tf.int32, [None, self.seq_length], name="X")
         self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
         self.rewards = tf.placeholder(tf.float32, [None, self.seq_length], name="rewards")
+        self.sample_size = tf.placeholder(tf.int32, name="batch_size")
 
         #embedding layer
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
@@ -179,7 +179,7 @@ class Generator:
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X_emb = tf.transpose(embedded_words, perm=(1,0,2))
         X = tf.transpose(self.X)
-        m = tf.shape(X_emb)[1] if start_t > 0 else self.sampling_size
+        m = tf.shape(X_emb)[1] if start_t > 0 else self.sample_size
 
         a0 = tf.zeros([m, self.lstm.state_size[0]]) #activation
         m0 = tf.zeros([m, self.lstm.state_size[1]]) #memory cell
