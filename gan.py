@@ -198,7 +198,7 @@ def main():
         D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
         D_losses.append(loss / 5)
-        print "Done training D."
+        print "Done training D. D's Loss: %s" % str(loss)
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
