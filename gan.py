@@ -5,33 +5,33 @@ from generator import Generator
 import pickle
 import numpy as np
 
-ID_FILENAME = 'id_to_word_OG.pkl'
-X_FILENAME = 'train_x_OG.pkl'
-Y_FILENAME = 'train_y_OG.pkl'
+ID_FILENAME = 'id_to_word_PUNC.pkl'
+X_FILENAME = 'train_x_PUNC.pkl'
+Y_FILENAME = 'train_y_PUNC.pkl'
 
 #GENERATOR HYPERPARAMETERS
-EMB_DIM = 5
+EMB_DIM = 100
 G_HIDDEN_UNITS = 100        #Hidden state dimension of lstm cell
 SEQ_LENGTH = 30
 START_TOKEN = 0
 G_EPOCH_NUM = 5             #Pre-training epochs for G
 G_LEARNING_RATE = 1e-2
-G_PRE_BATCH_SIZE = 50
-G_PRE_SAMPLE_SIZE = 1000    #How many negative examples to pre-train D with
-G_ADV_SAMPLE_SIZE = 100     #How many samples to train D with during adversarial training
+G_PRE_BATCH_SIZE = 1000
+G_PRE_SAMPLE_SIZE = 30000    #How many negative examples to pre-train D with
+G_ADV_SAMPLE_SIZE = 1000     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
-VOCAB_SIZE = 5002
+VOCAB_SIZE = 5001
 
 #DISCRIMINATOR HYPERPARAMETERS
-D_FILTER_SIZES = [1, 2, 3, 5]
-D_NUM_FILTERS = [10, 20, 20, 20]
+D_FILTER_SIZES = [1, 2, 3, 5, 8, 10, 15, 20]
+D_NUM_FILTERS = [10, 20, 20, 20, 20, 16, 16, 16]
 D_EPOCH_NUM = 100
-D_BATCH_SIZE= 50
+D_BATCH_SIZE= 100
 D_LEARNING_RATE = 1e-2
 D_HIDDEN_UNITS = 10
 D_ADV_BATCH_SIZE = 50
 
-TOTAL_BATCH = 5
+TOTAL_BATCH = 10
 
 def split_data(X, Y):
 	m = X.shape[0]
@@ -39,11 +39,11 @@ def split_data(X, Y):
 	X_p = X[permutation, :]
 	Y_p = Y[permutation, :]
 
-	X_train = X_p[:1000]
-	X_test = X_p[1000:1100]
+	X_train = X_p[:50000]
+	X_test = X_p[50000:51000]
 
-	Y_train = Y_p[:1000]
-	Y_test = Y_p[1000:1100]
+	Y_train = Y_p[:50000]
+	Y_test = Y_p[50000:51000]
 
 	return X_train, X_test, Y_train, Y_test
 
@@ -164,7 +164,7 @@ def main():
 	#Define Policy Gradient and RL loss (for generator)
     #Update D hyperparameters for adversarial training
     G_loss, G_update = G.adv_loss, G.pg_update
-    D.num_epochs = 3
+    D.num_epochs = 5
     D.minibatch_size = D_ADV_BATCH_SIZE
 
     print("Started adversarial training")
