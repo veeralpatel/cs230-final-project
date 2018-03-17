@@ -4,48 +4,74 @@ from discriminator import Discriminator
 from generator import Generator
 import pickle
 import numpy as np
+from nn_tools import random_mini_batches
 
 ID_FILENAME = 'id_to_word_OG.pkl'
 X_FILENAME = 'train_x_OG.pkl'
 Y_FILENAME = 'train_y_OG.pkl'
 
 #GENERATOR HYPERPARAMETERS
-EMB_DIM = 5
+EMB_DIM = 50
 G_HIDDEN_UNITS = 100        #Hidden state dimension of lstm cell
 SEQ_LENGTH = 30
 START_TOKEN = 0
 G_EPOCH_NUM = 5             #Pre-training epochs for G
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
-G_PRE_SAMPLE_SIZE = 1000    #How many negative examples to pre-train D with
-G_ADV_SAMPLE_SIZE = 100     #How many samples to train D with during adversarial training
+G_PRE_SAMPLE_SIZE = 10000    #How many negative examples to pre-train D with
+G_ADV_SAMPLE_SIZE = 10000     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
 VOCAB_SIZE = 5002
 
 #DISCRIMINATOR HYPERPARAMETERS
-D_FILTER_SIZES = [1, 2, 3, 5]
-D_NUM_FILTERS = [10, 20, 20, 20]
+D_FILTER_SIZES = [1, 2, 3, 4, 5]
+D_NUM_FILTERS = [10, 10, 20, 20, 20]
 D_EPOCH_NUM = 100
 D_BATCH_SIZE= 50
-D_LEARNING_RATE = 1e-2
+D_LEARNING_RATE = 1e-5
 D_HIDDEN_UNITS = 10
 D_ADV_BATCH_SIZE = 50
 
 TOTAL_BATCH = 5
 
-def split_data(X, Y):
+G_DATA_POINTER = 0
+D_DATA_POINTER = 0
+
+def shuffle_data(X, Y):
 	m = X.shape[0]
 	permutation = list(np.random.permutation(m))
-	X_p = X[permutation, :]
-	Y_p = Y[permutation, :]
+	return X[permutation, :], Y[permutation, :]
 
-	X_train = X_p[:1000]
-	X_test = X_p[1000:1100]
+def split_data(X, Y, start, train_size, test_size):
+	X_train = X[start:start+train_size]
+	X_test = X[start+train_size:start+train_size+test_size]
 
-	Y_train = Y_p[:1000]
-	Y_test = Y_p[1000:1100]
+	Y_train = Y[start:start+train_size]
+	Y_test = Y[start+train_size:start+train_size+test_size]
 
 	return X_train, X_test, Y_train, Y_test
+
+def print_samples(samples, id_to_word):
+    m, seq_length = samples.shape
+    for i in range(m):
+        sentence = []
+        for t in range(seq_length):
+            index = samples[i][t]
+            sentence.append(id_to_word[index])
+        print(' '.join(sentence))
+
+def gen_pos_batch(pos_samples, batch_size):
+    m = pos_samples.shape[0]
+    permutation = list(np.random.permutation(m))[:batch_size]
+    return pos_samples[permutation, :]
+
+def format_samples(pos_samples, neg_samples):
+    y_neg = np.tile(np.array([0,1]), (len(neg_samples), 1))
+    y_pos = np.tile(np.array([1,0]), (len(pos_samples), 1))
+
+    X = np.concatenate((neg_samples, pos_samples))
+    Y = np.concatenate((y_neg, y_pos))
+    return X, Y
 
 def get_reward(samples, rollout_num, D, G):
     rewards = []
@@ -71,28 +97,6 @@ def get_reward(samples, rollout_num, D, G):
 
     rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
     return rewards
-
-def print_samples(samples, id_to_word):
-    m, seq_length = samples.shape
-    for i in range(m):
-        sentence = []
-        for t in range(seq_length):
-            index = samples[i][t]
-            sentence.append(id_to_word[index])
-        print(' '.join(sentence))
-
-def gen_pos_batch(pos_samples, batch_size):
-    m = pos_samples.shape[0]
-    permutation = list(np.random.permutation(m))[:batch_size]
-    return pos_samples[permutation, :]
-
-def format_samples(pos_samples, neg_samples):
-    y_neg = np.tile(np.array([0,1]), (len(neg_samples), 1))
-    y_pos = np.tile(np.array([1,0]), (len(pos_samples), 1))
-
-    X_train = np.concatenate((neg_samples, pos_samples))
-    Y_train = np.concatenate((y_neg, y_pos))
-    return X_train, Y_train
 
 def main():
 
@@ -126,22 +130,20 @@ def main():
 
     G = Generator(G_hparams)
     D = Discriminator(D_hparams)
+    X = pickle.load(open(X_FILENAME, 'rb'))
+    Y = pickle.load(open(Y_FILENAME, 'rb'))
 
-    G_X = pickle.load(open(X_FILENAME, 'rb'))
-
-    D_X = pickle.load(open(X_FILENAME, 'rb'))
-    D_Y = pickle.load(open(Y_FILENAME, 'rb'))
-
+    D_X, D_Y = shuffle_data(X, Y)
+    G_X = D_X
+    X_pos = X[:288136]
 
 	#################################################################################
 	# 								PRE-TRAINING 									#
 	#################################################################################
 
-    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(G_X, G_X)
+    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(G_X, G_X, 0, 1000, 100)
     G_Y_train = G.one_hot(G_Y_train)
     G_Y_test = G.one_hot(G_Y_test)
-
-    D_pos = D_X[:G_PRE_SAMPLE_SIZE]
 
     print("Started pre-training G.")
     G.build_graph()
@@ -149,8 +151,8 @@ def main():
     print("Finished training G. Started pre-training D.")
 
     samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_PRE_SAMPLE_SIZE})
-    D_X_train, D_Y_train = format_samples(D_pos, samples)
-    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train) #USING GENERATOR DATA AS FAKE
+    D_X_train, D_Y_train = format_samples(X_pos[:G_PRE_SAMPLE_SIZE], samples)
+    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train, 0, 2*G_PRE_SAMPLE_SIZE-200, 200) #USING GENERATOR DATA AS FAKE
     # D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X, D_Y)           #USING YELP LABALED DATA AS FAKE
 
     D.build_graph()
@@ -164,7 +166,7 @@ def main():
 	#Define Policy Gradient and RL loss (for generator)
     #Update D hyperparameters for adversarial training
     G_loss, G_update = G.adv_loss, G.pg_update
-    D.num_epochs = 3
+    D.num_epochs = 5
     D.minibatch_size = D_ADV_BATCH_SIZE
 
     print("Started adversarial training")
@@ -191,21 +193,21 @@ def main():
         Y_train_full = []
         for k in range(5):
             samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-            pos = gen_pos_batch(D_pos, G_ADV_SAMPLE_SIZE)
+            pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
             X_train, Y_train = format_samples(pos, samples)
 
-            loss += D.train(X_train, Y_train, None, None, restart=False, report=False)
+            loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
             X_train_full.append(X_train)
             Y_train_full.append(Y_train)
 
         test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-        pos = gen_pos_batch(D_pos, G_ADV_SAMPLE_SIZE)
+        pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
         X_test, Y_test = format_samples(pos, samples)
         X_train_full = np.concatenate(X_train_full)
         Y_train_full = np.concatenate(Y_train_full)
         D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
-        D_losses.append(loss / 5)
+        D_losses.append(loss)
         print "Done training D. D's Loss: %s" % str(loss)
 
     plt.subplot(1,2,1)

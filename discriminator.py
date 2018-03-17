@@ -44,15 +44,6 @@ class Discriminator:
         self.accuracy = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
     def train(self, X_train, Y_train, X_test, Y_test, restart=True, report=False):
-        # if restart:
-        #     ops.reset_default_graph()
-        #     self.initialize_parameters()
-        #     self.Z4 = self.forward_propagation()
-        #     self.cost = self.compute_cost()
-        #     self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
-        #     self.init = tf.global_variables_initializer()
-        #     self.sess = tf.Session()
-
         costs = []
         seed = 1
         m = X_train.shape[0]
