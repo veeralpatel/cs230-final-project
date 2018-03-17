@@ -164,7 +164,7 @@ def main():
     X_pos_pre, X_pos_adv, Y_pos_pre, Y_pos_adv = split_pos_data_pretraining(X_pos, Y_pos, PRE_POST_SPLIT)
 
     # Split data into train and test for pretraining the generator
-    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(X_pos_pre, GENERATOR_TRAIN_TEST_SPLIT)
+    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(X_pos_pre, X_pos_pre, GENERATOR_TRAIN_TEST_SPLIT)
     G_Y_train = G.one_hot(G_Y_train)
     G_Y_test = G.one_hot(G_Y_test)
 
