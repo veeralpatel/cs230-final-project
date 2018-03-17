@@ -10,7 +10,15 @@ ID_FILENAME = 'id_to_word_PUNC.pkl'
 X_FILENAME = 'train_x_PUNC.pkl'
 Y_FILENAME = 'train_y_PUNC.pkl'
 
-#PRETRAINING/REGULAR 
+#INITIAL DATA SPLITTING PARAMETERS 
+POS_CUT_OFF = 288136
+
+ENTIRE_TRIM_SPLIT = 0.10
+
+PRE_POST_SPLIT = 0.33
+
+GENERATOR_TRAIN_TEST_SPLIT = 0.95
+DISCRIMINATOR_TRAIN_TEST_SPLIT = 0.95
 
 #GENERATOR HYPERPARAMETERS
 EMB_DIM = 50
@@ -39,16 +47,16 @@ D_EPOCH_NUM_ADV = 5
 
 TOTAL_BATCH = 5
 
-POS_CUT_OFF = 288136
-PRE_POST_SPLIT = 0.33
-
-GENERATOR_TRAIN_TEST_SPLIT = 0.95
-DISCRIMINATOR_TRAIN_TEST_SPLIT = 0.95
-
 def shuffle_data(X, Y):
 	m = X.shape[0]
 	permutation = list(np.random.permutation(m))
 	return X[permutation, :], Y[permutation, :]
+
+def trim_whole_data(X, Y, percentage_trim):
+    cutoff = int(X.shape[0]*percentage_trim)
+    X = X[:cutoff]
+    Y = Y[:cutoff]
+    return X, Y
 
 def split_pos_data_pretraining(X, Y, percentage_split):
     cutoff = int(X.shape[0]*percentage_split)
@@ -153,12 +161,11 @@ def main():
     X = pickle.load(open(X_FILENAME, 'rb'))
     Y = pickle.load(open(Y_FILENAME, 'rb'))
 
+    X_pos, Y_pos = trim_whole_data(X[:POS_CUT_OFF], Y[:POS_CUT_OFF], ENTIRE_TRIM_SPLIT)
+
     #################################################################################
     #                         GENERATOR PRE-TRAINING                                #
     #################################################################################
-
-    X_pos = X[:POS_CUT_OFF]
-    Y_pos = Y[:POS_CUT_OFF]
 
     # Split data into pretraining and posttraining for the generator
     X_pos_pre, X_pos_adv, Y_pos_pre, Y_pos_adv = split_pos_data_pretraining(X_pos, Y_pos, PRE_POST_SPLIT)
@@ -229,7 +236,7 @@ def main():
 
         test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
         pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
-        X_test, Y_test = format_samples(pos, samples)
+        X_test, Y_test = format_samples(pos, test_samples)
         X_train_full = np.concatenate(X_train_full)
         Y_train_full = np.concatenate(Y_train_full)
         D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
