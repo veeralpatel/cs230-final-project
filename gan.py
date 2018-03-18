@@ -207,42 +207,43 @@ def main():
 
     D_losses = []
     G_losses = []
-    for total_batch in range(TOTAL_BATCH):
-        print "Total batch: %d" % total_batch
-        # Train the generator for one step
-        samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-        rewards = get_reward(samples, G_ROLLOUT_NUM, D, G)
-        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
-        G_losses.append(loss)
-        print "Done training G. Loss: %s" % str(loss)
-
-        # Test
-        if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
-            samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
-            print_samples(samples, index_to_word)
-
-        # Train the discriminator
-        loss = 0.0
-        X_train_full = []
-        Y_train_full = []
-        for k in range(5):
+    with tf.device('/device:GPU:0'):
+        for total_batch in range(TOTAL_BATCH):
+            print "Total batch: %d" % total_batch
+            # Train the generator for one step
             samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
+            rewards = get_reward(samples, G_ROLLOUT_NUM, D, G)
+            _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
+            G_losses.append(loss)
+            print "Done training G. Loss: %s" % str(loss)
+
+            # Test
+            if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
+                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
+                print_samples(samples, index_to_word)
+
+            # Train the discriminator
+            loss = 0.0
+            X_train_full = []
+            Y_train_full = []
+            for k in range(5):
+                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
+                pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
+                X_train, Y_train = format_samples(pos, samples)
+
+                loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
+                X_train_full.append(X_train)
+                Y_train_full.append(Y_train)
+
+            test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
             pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
-            X_train, Y_train = format_samples(pos, samples)
+            X_test, Y_test = format_samples(pos, test_samples)
+            X_train_full = np.concatenate(X_train_full)
+            Y_train_full = np.concatenate(Y_train_full)
+            D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
-            loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
-            X_train_full.append(X_train)
-            Y_train_full.append(Y_train)
-
-        test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-        pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
-        X_test, Y_test = format_samples(pos, test_samples)
-        X_train_full = np.concatenate(X_train_full)
-        Y_train_full = np.concatenate(Y_train_full)
-        D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
-
-        D_losses.append(loss)
-        print "Done training D. D's Loss: %s" % str(loss)
+            D_losses.append(loss)
+            print "Done training D. D's Loss: %s" % str(loss)
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
