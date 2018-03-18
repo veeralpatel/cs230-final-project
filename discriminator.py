@@ -142,8 +142,10 @@ class Discriminator:
         full_pool = tf.concat(pooled, 3)
         flat_pool = tf.reshape(full_pool, [-1, num_filters_total])
 
-        Z3 = tf.contrib.layers.fully_connected(flat_pool, self.fully_connected_size, activation_fn=tf.nn.relu)
-        Z4 = tf.contrib.layers.fully_connected(Z3, 2, activation_fn=None)
+        Z3 = tf.contrib.layers.fully_connected(flat_pool, self.fully_connected_size, activation_fn=tf.nn.relu,
+                                                weights_regularizer=tf.contrib.layers.l2_regularizer(0.2))
+        Z4 = tf.contrib.layers.fully_connected(Z3, 2, activation_fn=None,
+                                                weights_regularizer=tf.contrib.layers.l2_regularizer(0.2))
         return Z4
 
     def compute_cost(self):
