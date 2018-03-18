@@ -6,9 +6,19 @@ import pickle
 import numpy as np
 from nn_tools import random_mini_batches
 
-ID_FILENAME = 'id_to_word_OG.pkl'
-X_FILENAME = 'train_x_OG.pkl'
-Y_FILENAME = 'train_y_OG.pkl'
+ID_FILENAME = 'id_to_word_PUNC.pkl'
+X_FILENAME = 'train_x_PUNC.pkl'
+Y_FILENAME = 'train_y_PUNC.pkl'
+
+#INITIAL DATA SPLITTING PARAMETERS
+POS_CUT_OFF = 288136
+
+ENTIRE_TRIM_SPLIT = 0.10
+
+PRE_POST_SPLIT = 0.33
+
+GENERATOR_TRAIN_TEST_SPLIT = 0.95
+DISCRIMINATOR_TRAIN_TEST_SPLIT = 0.95
 
 #GENERATOR HYPERPARAMETERS
 EMB_DIM = 100
@@ -16,40 +26,57 @@ G_HIDDEN_UNITS = 100        #Hidden state dimension of lstm cell
 SEQ_LENGTH = 30
 START_TOKEN = 0
 G_EPOCH_NUM = 5             #Pre-training epochs for G
+G_ROLLOUT_NUM = 16
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
 G_PRE_SAMPLE_SIZE = 10000    #How many negative examples to pre-train D with
 G_ADV_SAMPLE_SIZE = 1000     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
-VOCAB_SIZE = 5002
+VOCAB_SIZE = 5001
 
 #DISCRIMINATOR HYPERPARAMETERS
 D_FILTER_SIZES = [1, 2, 3, 4, 5]
 D_NUM_FILTERS = [10, 10, 20, 20, 20]
 D_EPOCH_NUM = 100
+
 D_BATCH_SIZE= 50
 D_LEARNING_RATE = 1e-5
 D_HIDDEN_UNITS = 10
 D_ADV_BATCH_SIZE = 50
+D_EPOCH_NUM_ADV = 5
 
 TOTAL_BATCH = 5
-
-G_DATA_POINTER = 0
-D_DATA_POINTER = 0
 
 def shuffle_data(X, Y):
 	m = X.shape[0]
 	permutation = list(np.random.permutation(m))
 	return X[permutation, :], Y[permutation, :]
 
-def split_data(X, Y, start, train_size, test_size):
-	X_train = X[start:start+train_size]
-	X_test = X[start+train_size:start+train_size+test_size]
+def trim_whole_data(X, Y, percentage_trim):
+    cutoff = int(X.shape[0]*percentage_trim)
+    X = X[:cutoff]
+    Y = Y[:cutoff]
+    return X, Y
 
-	Y_train = Y[start:start+train_size]
-	Y_test = Y[start+train_size:start+train_size+test_size]
+def split_pos_data_pretraining(X, Y, percentage_split):
+    cutoff = int(X.shape[0]*percentage_split)
 
-	return X_train, X_test, Y_train, Y_test
+    X_pos_pre = X[:cutoff]
+    X_pos_adv = X[cutoff:]
+    Y_pos_pre = Y[:cutoff]
+    Y_pos_adv = Y[cutoff:]
+
+    return X_pos_pre, X_pos_adv, Y_pos_pre, Y_pos_adv
+
+def split_data(X, Y, training_split):
+    cutoff = int(X.shape[0]*training_split)
+
+    X_train = X[:cutoff]
+    X_test = X[cutoff:]
+    Y_train = Y[:cutoff]
+    Y_test = Y[cutoff:]
+
+    return X_train, X_test, Y_train, Y_test
 
 def print_samples(samples, id_to_word):
     m, seq_length = samples.shape
@@ -130,18 +157,21 @@ def main():
 
     G = Generator(G_hparams)
     D = Discriminator(D_hparams)
+
     X = pickle.load(open(X_FILENAME, 'rb'))
     Y = pickle.load(open(Y_FILENAME, 'rb'))
 
-    D_X, D_Y = shuffle_data(X, Y)
-    G_X = D_X
-    X_pos = X[:288136]
+    X_pos, Y_pos = trim_whole_data(X[:POS_CUT_OFF], Y[:POS_CUT_OFF], ENTIRE_TRIM_SPLIT)
 
-	#################################################################################
-	# 								PRE-TRAINING 									#
-	#################################################################################
+    #################################################################################
+    #                         GENERATOR PRE-TRAINING                                #
+    #################################################################################
 
-    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(X_pos, X_pos, 0, 1000, 100)
+    # Split data into pretraining and posttraining for the generator
+    X_pos_pre, X_pos_adv, Y_pos_pre, Y_pos_adv = split_pos_data_pretraining(X_pos, Y_pos, PRE_POST_SPLIT)
+
+    # Split data into train and test for pretraining the generator
+    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(X_pos_pre, X_pos_pre, GENERATOR_TRAIN_TEST_SPLIT)
     G_Y_train = G.one_hot(G_Y_train)
     G_Y_test = G.one_hot(G_Y_test)
 
@@ -151,9 +181,13 @@ def main():
     print("Finished training G. Started pre-training D.")
 
     samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_PRE_SAMPLE_SIZE})
-    D_X_train, D_Y_train = format_samples(X_pos[:G_PRE_SAMPLE_SIZE], samples)
-    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train, 0, 2*G_PRE_SAMPLE_SIZE-200, 200) #USING GENERATOR DATA AS FAKE
-    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X, D_Y, 0, 20000, 2000)           #USING YELP LABALED DATA AS FAKE
+
+    #################################################################################
+    #                         DISCRIMINATOR PRE-TRAINING                            #
+    #################################################################################
+
+    D_X_train, D_Y_train = format_samples(X_pos_pre[:G_PRE_SAMPLE_SIZE], samples)
+    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train, DISCRIMINATOR_TRAIN_TEST_SPLIT)
 
     D.build_graph()
     D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
@@ -166,50 +200,49 @@ def main():
 	#Define Policy Gradient and RL loss (for generator)
     #Update D hyperparameters for adversarial training
     G_loss, G_update = G.adv_loss, G.pg_update
-    D.num_epochs = 3
+    D.num_epochs = D_EPOCH_NUM_ADV
     D.minibatch_size = D_ADV_BATCH_SIZE
 
     print("Started adversarial training")
 
     D_losses = []
     G_losses = []
-    with tf.device('/device:GPU:0'):
-        for total_batch in range(TOTAL_BATCH):
-            print "Total batch: %d" % total_batch
-            # Train the generator for one step
+    for total_batch in range(TOTAL_BATCH):
+        print "Total batch: %d" % total_batch
+        # Train the generator for one step
+        samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
+        rewards = get_reward(samples, G_ROLLOUT_NUM, D, G)
+        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
+        G_losses.append(loss)
+        print "Done training G. Loss: %s" % str(loss)
+
+        # Test
+        if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
+            samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
+            print_samples(samples, index_to_word)
+
+        # Train the discriminator
+        loss = 0.0
+        X_train_full = []
+        Y_train_full = []
+        for k in range(5):
             samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-            rewards = get_reward(samples, 16, D, G)
-            _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
-            G_losses.append(loss)
-            print "Done training G. Loss: %s" % str(loss)
+            pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
+            X_train, Y_train = format_samples(pos, samples)
 
-            # Test
-            if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
-                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
-                print_samples(samples, index_to_word)
+            loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
+            X_train_full.append(X_train)
+            Y_train_full.append(Y_train)
 
-            # Train the discriminator
-            loss = 0.0
-            X_train_full = []
-            Y_train_full = []
-            for k in range(5):
-                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-                pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
-                X_train, Y_train = format_samples(pos, samples)
+        test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
+        pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
+        X_test, Y_test = format_samples(pos, test_samples)
+        X_train_full = np.concatenate(X_train_full)
+        Y_train_full = np.concatenate(Y_train_full)
+        D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
-                loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
-                X_train_full.append(X_train)
-                Y_train_full.append(Y_train)
-
-            test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-            pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
-            X_test, Y_test = format_samples(pos, samples)
-            X_train_full = np.concatenate(X_train_full)
-            Y_train_full = np.concatenate(Y_train_full)
-            D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
-
-            D_losses.append(loss)
-            print "Done training D. D's Loss: %s" % str(loss)
+        D_losses.append(loss)
+        print "Done training D. D's Loss: %s" % str(loss)
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
