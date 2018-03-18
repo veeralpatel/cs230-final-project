@@ -205,28 +205,6 @@ def main():
 
     D_losses = []
     G_losses = []
-<<<<<<< HEAD
-    for total_batch in range(TOTAL_BATCH):
-        print "Total batch: %d" % total_batch
-        # Train the generator for one step
-        samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-        rewards = get_reward(samples, G_ROLLOUT_NUM, D, G)
-        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
-        G_losses.append(loss)
-        print "Done training G. Loss: %s" % str(loss)
-
-        # Test
-        if total_batch % 2 == 0 or total_batch == TOTAL_BATCH - 1:
-            samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
-            print_samples(samples, index_to_word)
-
-        # Train the discriminator
-        loss = 0.0
-        X_train_full = []
-        Y_train_full = []
-        for k in range(5):
-            samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-=======
     beam_start = VOCAB_SIZE
     beam_rate = int((VOCAB_SIZE - BEAM_TARGET)/TOTAL_BATCH)
     with tf.device('/device:GPU:0'):
@@ -259,7 +237,6 @@ def main():
                 Y_train_full.append(Y_train)
 
             test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE, G.beam_width: beam})
->>>>>>> 24e4343fd977898a744d377b45affed26d7731ad
             pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
             X_test, Y_test = format_samples(pos, test_samples)
             X_train_full = np.concatenate(X_train_full)

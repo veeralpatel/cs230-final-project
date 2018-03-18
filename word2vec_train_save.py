@@ -45,7 +45,6 @@ count = 0
 for review in trimmed_reviews:
     for word in review:
         count +=1
-count
 
 
 # In[15]:
@@ -66,7 +65,6 @@ for review in trimmed_reviews:
 import operator
 
 vocab_sorted = dict(sorted(vocab.iteritems(), key=operator.itemgetter(1), reverse=True)[:25000])
-vocab_sorted
 
 
 # In[17]:
@@ -91,7 +89,6 @@ len(id_to_word)
 
 
 id_to_word[25000] = '<UNK>'
-id_to_word[25000]
 
 
 # In[20]:
@@ -106,7 +103,6 @@ for i, review in enumerate(trimmed_reviews):
             trimmed_reviews[i][j] = vocab_ids[word]
         else:
             trimmed_reviews[i][j] = 25000
-trimmed_reviews
 
 
 # In[ ]:
