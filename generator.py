@@ -34,6 +34,7 @@ class Generator:
         self.Y = tf.placeholder(tf.uint8, [None, self.seq_length, self.vocab_size], name="Y")
         self.rewards = tf.placeholder(tf.float32, [None, self.seq_length], name="rewards")
         self.sample_size = tf.placeholder(tf.int32, name="batch_size")
+        self.beam_width = tf.placeholder(tf.int32, name="beam_width")
 
         #embedding layer
         self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
@@ -43,7 +44,7 @@ class Generator:
         self.Wo = tf.Variable(tf.random_normal([self.num_units, self.vocab_size], 0.1), name="Wo")
         self.bo = tf.Variable(tf.random_normal([self.vocab_size], 0.1), name="Wo")
 
-    def generate_examples(self, m):
+    def mle_sample(self, m):
         output = tf.zeros([m, self.embedding_size])
         outputs = []
         c_state = tf.zeros([m, self.lstm.state_size[0]])
@@ -96,8 +97,8 @@ class Generator:
 
         self.adv_loss, self.pg_update = self.policy_grad_update()
         #self.gen_examples = self.generate_examples(self.sampling_size)
-        self.gen_examples = self.rollout(0)
-        self.rollouts = [self.gen_examples] + [self.rollout(t) for t in range(1, self.seq_length)]
+        self.gen_examples = self.rollout(0, True)
+        self.rollouts = [self.gen_examples] + [self.rollout(t, True) for t in range(1, self.seq_length)]
 
         self.init = tf.global_variables_initializer()
         self.sess.run(self.init)
@@ -171,11 +172,11 @@ class Generator:
         grads_and_params = optimizer.compute_gradients(loss)
         (grads, params) = np.transpose(grads_and_params).tolist()
 
-        grads, _ = tf.clip_by_global_norm(grads, 5.0)
+        grads, _ = tf.clip_by_global_norm(grads, 10.0)
 
         return loss, optimizer.apply_gradients(zip(grads, params))
 
-    def rollout(self, start_t):
+    def rollout(self, start_t, beam=False):
         embedded_words = tf.nn.embedding_lookup(self.G_embed, self.X)
         X_emb = tf.transpose(embedded_words, perm=(1,0,2))
         X = tf.transpose(self.X)
@@ -197,6 +198,7 @@ class Generator:
         while t < self.seq_length:
             a, state = self.lstm(xt, state)
             z = tf.nn.softmax(self.output_layer(a))
+            z = self.beam_search(z) if beam else z
             next_token = tf.cast(tf.reshape(tf.multinomial(tf.log(z), 1), [m]), tf.int32)
             xt = tf.nn.embedding_lookup(self.G_embed, next_token)
             outputs.append(next_token)
@@ -204,6 +206,13 @@ class Generator:
 
         out = tf.stack(outputs)
         return tf.transpose(out)
+
+    def beam_search(self, z):
+        values, _ = tf.nn.top_k(z, self.beam_width)
+        cutoff = tf.tile(tf.expand_dims(tf.reduce_min(values, axis=1), -1), [1, tf.shape(z)[1]])
+        mask = tf.greater_equal(z, cutoff)
+        zeros = tf.zeros_like(z)
+        return tf.where(mask, z, zeros)
 
     def output_layer(self, a):
         return tf.matmul(a, self.Wo) + self.bo
@@ -226,6 +235,8 @@ def main():
     }
 
     G = Generator(hparams)
+    G.build_graph()
+
     X = pickle.load(open('train_x.pkl', 'rb'))
 
     X_train = X[:1000]
@@ -236,7 +247,7 @@ def main():
 
     G.train(X_train, Y_train, X_test, Y_test)
 
-    print G.generate_examples(5)
+    print G.mle_sample(5)
 
 
 if __name__=="__main__":
