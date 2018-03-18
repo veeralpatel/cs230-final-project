@@ -161,7 +161,7 @@ class Generator:
         loss = tf.reduce_sum( tf.one_hot(tf.reshape(self.X, [-1]), self.vocab_size, 1.0, 0.0)
                 * tf.log( tf.clip_by_value(tf.reshape(probs, [-1, self.vocab_size]), 1e-20, 1.0) ), 1)
         b = tf.reshape(self.rewards, [-1])
-        loss = -tf.reduce_sum(loss * b)
+        loss = -1 * tf.reduce_sum(loss * b)
         return loss
 
     def policy_grad_update(self):

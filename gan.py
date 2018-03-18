@@ -11,7 +11,7 @@ X_FILENAME = 'train_x_OG.pkl'
 Y_FILENAME = 'train_y_OG.pkl'
 
 #GENERATOR HYPERPARAMETERS
-EMB_DIM = 50
+EMB_DIM = 100
 G_HIDDEN_UNITS = 100        #Hidden state dimension of lstm cell
 SEQ_LENGTH = 30
 START_TOKEN = 0
@@ -19,7 +19,7 @@ G_EPOCH_NUM = 5             #Pre-training epochs for G
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
 G_PRE_SAMPLE_SIZE = 10000    #How many negative examples to pre-train D with
-G_ADV_SAMPLE_SIZE = 10000     #How many samples to train D with during adversarial training
+G_ADV_SAMPLE_SIZE = 1000     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
 VOCAB_SIZE = 5002
 
@@ -141,7 +141,7 @@ def main():
 	# 								PRE-TRAINING 									#
 	#################################################################################
 
-    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(G_X, G_X, 0, 1000, 100)
+    G_X_train, G_X_test, G_Y_train, G_Y_test = split_data(X_pos, X_pos, 0, 1000, 100)
     G_Y_train = G.one_hot(G_Y_train)
     G_Y_test = G.one_hot(G_Y_test)
 
@@ -153,7 +153,7 @@ def main():
     samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_PRE_SAMPLE_SIZE})
     D_X_train, D_Y_train = format_samples(X_pos[:G_PRE_SAMPLE_SIZE], samples)
     D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train, 0, 2*G_PRE_SAMPLE_SIZE-200, 200) #USING GENERATOR DATA AS FAKE
-    # D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X, D_Y)           #USING YELP LABALED DATA AS FAKE
+    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X, D_Y, 0, 20000, 2000)           #USING YELP LABALED DATA AS FAKE
 
     D.build_graph()
     D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
@@ -166,49 +166,50 @@ def main():
 	#Define Policy Gradient and RL loss (for generator)
     #Update D hyperparameters for adversarial training
     G_loss, G_update = G.adv_loss, G.pg_update
-    D.num_epochs = 5
+    D.num_epochs = 3
     D.minibatch_size = D_ADV_BATCH_SIZE
 
     print("Started adversarial training")
 
     D_losses = []
     G_losses = []
-    for total_batch in range(TOTAL_BATCH):
-        print "Total batch: %d" % total_batch
-        # Train the generator for one step
-        samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-        rewards = get_reward(samples, 16, D, G)
-        _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
-        G_losses.append(loss)
-        print "Done training G. Loss: %s" % str(loss)
-
-        # Test
-        if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
-            samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
-            print_samples(samples, index_to_word)
-
-        # Train the discriminator
-        loss = 0.0
-        X_train_full = []
-        Y_train_full = []
-        for k in range(5):
+    with tf.device('/device:GPU:0'):
+        for total_batch in range(TOTAL_BATCH):
+            print "Total batch: %d" % total_batch
+            # Train the generator for one step
             samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
+            rewards = get_reward(samples, 16, D, G)
+            _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
+            G_losses.append(loss)
+            print "Done training G. Loss: %s" % str(loss)
+
+            # Test
+            if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:
+                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_TEST_SIZE})
+                print_samples(samples, index_to_word)
+
+            # Train the discriminator
+            loss = 0.0
+            X_train_full = []
+            Y_train_full = []
+            for k in range(5):
+                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
+                pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
+                X_train, Y_train = format_samples(pos, samples)
+
+                loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
+                X_train_full.append(X_train)
+                Y_train_full.append(Y_train)
+
+            test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
             pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
-            X_train, Y_train = format_samples(pos, samples)
+            X_test, Y_test = format_samples(pos, samples)
+            X_train_full = np.concatenate(X_train_full)
+            Y_train_full = np.concatenate(Y_train_full)
+            D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
 
-            loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
-            X_train_full.append(X_train)
-            Y_train_full.append(Y_train)
-
-        test_samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE})
-        pos = gen_pos_batch(X_pos, G_ADV_SAMPLE_SIZE)
-        X_test, Y_test = format_samples(pos, samples)
-        X_train_full = np.concatenate(X_train_full)
-        Y_train_full = np.concatenate(Y_train_full)
-        D_train_acc, D_test_acc = D.report_accuracy(X_train_full, Y_train_full, X_test, Y_test)
-
-        D_losses.append(loss)
-        print "Done training D. D's Loss: %s" % str(loss)
+            D_losses.append(loss)
+            print "Done training D. D's Loss: %s" % str(loss)
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
