@@ -6,10 +6,10 @@ import pickle
 import numpy as np
 from nn_tools import random_mini_batches
 
-ID_FILENAME = 'id_to_word_PUNC.pkl'
-X_FILENAME = 'train_x_PUNC.pkl'
-Y_FILENAME = 'train_y_PUNC.pkl'
-EMBED_FILENAME = 'embedding_matrix.pkl'
+ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
+X_FILENAME = 'pickles/train_x_PUNC.pkl'
+Y_FILENAME = 'pickles/train_y_PUNC.pkl'
+EMBED_FILENAME = 'pickles/embedding_matrix.pkl'
 
 #INITIAL DATA SPLITTING PARAMETERS
 POS_CUT_OFF = 288136
@@ -24,12 +24,12 @@ EMB_DIM = 100
 G_HIDDEN_UNITS = 100        #Hidden state dimension of lstm cell
 SEQ_LENGTH = 30
 START_TOKEN = 0
-G_EPOCH_NUM = 5             #Pre-training epochs for G
+G_EPOCH_NUM = 20             #Pre-training epochs for G
 G_ROLLOUT_NUM = 16
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
-G_PRE_SAMPLE_SIZE = 1000    #How many negative examples to pre-train D with
-G_ADV_SAMPLE_SIZE = 100     #How many samples to train D with during adversarial training
+G_PRE_SAMPLE_SIZE = 10000    #How many negative examples to pre-train D with
+G_ADV_SAMPLE_SIZE = 1000     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
 VOCAB_SIZE = 5001
 BEAM_TARGET = 1000
@@ -44,7 +44,7 @@ D_HIDDEN_UNITS = 10
 D_ADV_BATCH_SIZE = 50
 D_EPOCH_NUM_ADV = 3
 
-TOTAL_BATCH = 10
+TOTAL_BATCH = 20
 
 def shuffle_data(X, Y):
 	m = X.shape[0]
@@ -153,9 +153,9 @@ def main():
             	}
 
     index_to_word = pickle.load(open(ID_FILENAME))
-    embedding_matrix = pickle.load(open(EMBED_FILENAME))
+   # embedding_matrix = pickle.load(open(EMBED_FILENAME))
     
-    G = Generator(G_hparams, embedding_matrix)
+    G = Generator(G_hparams)
     D = Discriminator(D_hparams)
 
     X = pickle.load(open(X_FILENAME, 'rb'))
@@ -208,18 +208,19 @@ def main():
     D_losses = []
     G_losses = []
     beam_start = VOCAB_SIZE
-    beam_rate = int((VOCAB_SIZE - BEAM_TARGET)/TOTAL_BATCH)
+    beam_rate = int((VOCAB_SIZE - BEAM_TARGET)/(TOTAL_BATCH-1))
     #with tf.device('/device:GPU:0'):
     with tf.device('/device:CPU:0'):
         for total_batch in range(TOTAL_BATCH):
             beam = beam_start - beam_rate*total_batch
             print "Total batch: %d" % total_batch
             # Train the generator for one step
-            samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE, G.beam_width: beam})
-            rewards = get_reward(samples, G_ROLLOUT_NUM, beam, D, G)
-            _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
-            G_losses.append(loss)
-            print "Done training G. Loss: %s" % str(loss)
+            for g in range(3):
+                samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE, G.beam_width: beam})
+                rewards = get_reward(samples, G_ROLLOUT_NUM, beam, D, G)
+                _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
+                G_losses.append(loss)
+                print "Done training G. Loss: %s" % str(loss)
 
             # Test
             if total_batch % 5 == 0 or total_batch == TOTAL_BATCH - 1:

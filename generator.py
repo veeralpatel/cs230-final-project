@@ -89,7 +89,8 @@ class Generator:
     def compute_cost(self):
         self.labels = tf.transpose(self.Y, perm=(1,0,2))
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self.labels))
-        return cost
+	reg = tf.nn.l2_loss(self.Wo)
+        return cost + 0.00001*reg
 
     def build_graph(self):
         self.initialize_parameters()

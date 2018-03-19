@@ -11,5 +11,5 @@ positive_trimmed.txt
 *.txt
 *.pyc
 *.pem
-*.pkl
 *.ipynb
+*.pkl
