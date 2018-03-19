@@ -275,7 +275,7 @@ def main():
     plt.xlabel('Adversarial Epochs')
     plt.title("Generator")
 
-    plt.savefig('adv_learning')
+    plt.savefig(GENERATOR_OUTPUT_RESULTS+'adv_learning')
 
 if __name__=="__main__":
     main()
