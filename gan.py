@@ -9,7 +9,7 @@ from nn_tools import random_mini_batches
 ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
 X_FILENAME = 'pickles/train_x_PUNC.pkl'
 Y_FILENAME = 'pickles/train_y_PUNC.pkl'
-GENERATOR_OUTPUT_RESULTS = 'results/test_name_'
+GENERATOR_OUTPUT_RESULTS = 'results/test_name_no_beam_'
 EMBED_FILENAME = 'embedding_matrix.pkl'
 
 #INITIAL DATA SPLITTING PARAMETERS
@@ -222,7 +222,8 @@ def main():
     with tf.device('/device:GPU:0'):
     #with tf.device('/device:CPU:0'):
         for total_batch in range(TOTAL_BATCH):
-            beam = beam_start - beam_rate*total_batch
+            beam = beam_start
+            # beam = beam_start - beam_rate*total_batch
             print "Total batch: %d" % total_batch
             # Train the generator for one step
             for g in range(1):
@@ -266,12 +267,14 @@ def main():
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
+    pickle.dump(D_losses,open(GENERATOR_OUTPUT_RESULTS+'d_losses.pkl', 'wb'))
     plt.ylabel('Loss')
     plt.xlabel('Adversarial Epochs')
     plt.title("Discriminator")
 
     plt.subplot(1,2,2)
     plt.plot(np.squeeze(G_losses))
+    pickle.dump(G_losses,open(GENERATOR_OUTPUT_RESULTS+'g_losses.pkl', 'wb'))
     plt.xlabel('Adversarial Epochs')
     plt.title("Generator")
 
