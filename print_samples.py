@@ -2,9 +2,9 @@ import pickle
 
 ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
 TEST_NAME = ''
-OUTPUT_RANDOM = 'results/test_name_' + TEST_NAME + 'before_pretrain'
-OUTPUT_LSTM = 'results/test_name_' + TEST_NAME + 'after_pretrain'
-OUTPUT_GAN = 'results/test_name_' + TEST_NAME + 'after_adv'
+OUTPUT_RANDOM = 'results/test_name_' + TEST_NAME + 'before_pretrain.pkl'
+OUTPUT_LSTM = 'results/test_name_' + TEST_NAME + 'after_pretrain.pkl'
+OUTPUT_GAN = 'results/test_name_' + TEST_NAME + 'after_adv.pkl'
 
 def print_samples(samples, id_to_word):
     m, seq_length = samples.shape
