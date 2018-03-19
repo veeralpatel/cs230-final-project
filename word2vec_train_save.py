@@ -133,12 +133,12 @@ model = gensim.models.word2vec.Word2Vec(sentences, size=100, window=5, min_count
 
 keys= model.wv.vocab.keys()
 print(len(keys))
-# for i, sentence in enumerate(sentences):
-#     if i % 1000 == 0:
-#         print(i)
-#     for j, word in enumerate(sentence):
-#         if word not in keys:
-#             sentences[i] = sentence[0:j] + ['<UNK>'] + sentence[j+1:]
+for i, sentence in enumerate(sentences):
+    if i % 1000 == 0:
+        print(i)
+    for j, word in enumerate(sentence):
+        if word not in keys:
+            sentences[i] = sentence[0:j] + ['<UNK>'] + sentence[j+1:]
             
 
 
