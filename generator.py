@@ -9,7 +9,7 @@ from tensorflow.python.framework import ops
 
 class Generator:
 
-    def __init__(self, hparams):
+    def __init__(self, hparams, embedding=[]):
         #Input data params
         self.seq_length = hparams["seq_length"]   # expected number of tokens per review
         self.embedding_size = hparams["embedding_size"]
@@ -20,6 +20,7 @@ class Generator:
         self.learning_rate = hparams["learning_rate"]
         self.num_epochs = hparams["num_epochs"]
         self.minibatch_size = hparams["minibatch_size"]
+        self.embedding = embedding
 
     def one_hot(self, X):
         m = X.shape[0]
@@ -37,7 +38,11 @@ class Generator:
         self.beam_width = tf.placeholder(tf.int32, name="beam_width")
 
         #embedding layer
-        self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
+        if len(self.embedding): #if embedding is provided
+            self.G_embed = tf.Variable(self.embedding, dtype=tf.float32, trainable=False, name="We")
+        else:
+            self.G_embed = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0), name="We")
+
         #RNN cell
         self.lstm = tf.contrib.rnn.LSTMCell(self.num_units)
         #Output layer
@@ -230,14 +235,17 @@ def main():
         "vocab_size": 5002,
         "num_units": 100,
         "learning_rate": 1e-2,
-        "num_epochs": 10,
+        "num_epochs": 2,
         "minibatch_size": 50
     }
 
+    embedding = np.random.rand(hparams["vocab_size"], hparams["embedding_size"])
     G = Generator(hparams)
     G.build_graph()
+    check = tf.nn.embedding_lookup(G.G_embed, [1])
+    print(embedding[1], G.sess.run(check))
 
-    X = pickle.load(open('train_x.pkl', 'rb'))
+    X = pickle.load(open('train_x_OG.pkl', 'rb'))
 
     X_train = X[:1000]
     X_test = X[1000:1100]
@@ -246,6 +254,7 @@ def main():
     Y_test = G.one_hot(X_test)
 
     G.train(X_train, Y_train, X_test, Y_test)
+    print(embedding[1], G.sess.run(check))
 
     print G.mle_sample(5)
 

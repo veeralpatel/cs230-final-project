@@ -9,7 +9,7 @@ from sklearn.cross_validation import train_test_split
 import nn_tools
 
 class Discriminator:
-    def __init__(self, hparams):
+    def __init__(self, hparams, embedding=[]):
         """
         Assumes that hparams contains all of the following parameters
         """
@@ -25,6 +25,7 @@ class Discriminator:
         self.learning_rate = hparams["learning_rate"]
         self.num_epochs = hparams["num_epochs"]
         self.minibatch_size = hparams["minibatch_size"]
+        self.embedding = embedding
 
         assert len(self.filter_sizes) == len(self.num_filters), "filter_sizes and num_filters must be same length"
 
@@ -101,8 +102,15 @@ class Discriminator:
         self.Y = tf.placeholder(tf.float32, [None, 2], name="Y")
 
         #Embedding Layer
-        W0 = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0),
-                    name="W0")
+        W0 = None
+        if len(self.embedding): #If pre-trained embedding is provided
+            W0 = tf.Variable(tf.constant(0.0, shape=[self.vocab_size, self.embedding_size]),
+                trainable=False, name="W0")
+            W0.assign(self.embedding)
+        else:
+            W0 = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0),
+                        name="W0")
+
         self.params["W0"] = W0
 
         #Convolutional Layers
@@ -179,7 +187,7 @@ hparams = {
             "seq_length": 30,
             "embedding_size": 5,
             "vocab_size": 5002,
-            "filter_sizes": [1, 2, 3, 5, 8, 10, 20],
+            "filter_sizes": [1, 2],
             "num_filters": [1, 2],
             "fully_connected_size": 5,
             "learning_rate": 1e-5,
@@ -188,31 +196,29 @@ hparams = {
           }
 
 def main():
-    D = Discriminator(hparams)
-    X = pickle.load(open('train_x.pkl', 'rb'))
-    Y = pickle.load(open('train_y.pkl', 'rb'))
+    embedding = np.random.rand(hparams["vocab_size"], hparams["embedding_size"])
+    D = Discriminator(hparams, embedding)
+    X = pickle.load(open('train_x_OG.pkl', 'rb'))
+    Y = pickle.load(open('train_y_OG.pkl', 'rb'))
 
     m = X.shape[0]
     permutation = list(np.random.permutation(m))
     X = X[permutation, :]
     Y = Y[permutation, :].reshape((m,2))
 
-    X_train = X[11000:288700]
-    X_test = X[288700:]
+    X_train = X[:1000]
+    X_test = X[1000:1100]
 
-    Y_train = Y[11000:288700]
-    Y_test = Y[288700:]
+    Y_train = Y[:1000]
+    Y_test = Y[1000:1100]
 
-    D.train(X_train, Y_train, X_test, Y_test, hparams)
-
-    print('Inputing')
-    print(X[288702])
-    print D.predict([X[288702]])
+    D.build_graph()
+    D.train(X_train, Y_train, X_test, Y_test)
 
     X_train_continue = X[0:10000]
     Y_train_continue = Y[0:10000]
 
-    D.train(X_train_continue, Y_train_continue, X_test, Y_test, hparams, restart=False)
+    D.train(X_train_continue, Y_train_continue, X_test, Y_test, restart=False)
 
 
 if __name__=="__main__":

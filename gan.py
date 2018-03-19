@@ -6,9 +6,10 @@ import pickle
 import numpy as np
 from nn_tools import random_mini_batches
 
-ID_FILENAME = 'id_to_word_OG.pkl'
-X_FILENAME = 'train_x_OG.pkl'
-Y_FILENAME = 'train_y_OG.pkl'
+ID_FILENAME = 'id_to_word_PUNC.pkl'
+X_FILENAME = 'train_x_PUNC.pkl'
+Y_FILENAME = 'train_y_PUNC.pkl'
+EMBED_FILENAME = 'embedding_matrix.pkl'
 
 #INITIAL DATA SPLITTING PARAMETERS
 POS_CUT_OFF = 288136
@@ -19,29 +20,29 @@ GENERATOR_TRAIN_TEST_SPLIT = 0.95
 DISCRIMINATOR_TRAIN_TEST_SPLIT = 0.95
 
 #GENERATOR HYPERPARAMETERS
-EMB_DIM = 500
+EMB_DIM = 100
 G_HIDDEN_UNITS = 100        #Hidden state dimension of lstm cell
 SEQ_LENGTH = 30
 START_TOKEN = 0
-G_EPOCH_NUM = 10             #Pre-training epochs for G
+G_EPOCH_NUM = 5             #Pre-training epochs for G
 G_ROLLOUT_NUM = 16
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
-G_PRE_SAMPLE_SIZE = 10000    #How many negative examples to pre-train D with
-G_ADV_SAMPLE_SIZE = 1000     #How many samples to train D with during adversarial training
+G_PRE_SAMPLE_SIZE = 1000    #How many negative examples to pre-train D with
+G_ADV_SAMPLE_SIZE = 100     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
-VOCAB_SIZE = 5002
+VOCAB_SIZE = 5001
 BEAM_TARGET = 1000
 
 #DISCRIMINATOR HYPERPARAMETERS
 D_FILTER_SIZES = [1, 2, 3, 5, 8, 10, 15, 20]
 D_NUM_FILTERS = [10, 20, 20, 20, 20, 16, 16, 16]
-D_EPOCH_NUM = 100
+D_EPOCH_NUM = 50
 D_BATCH_SIZE= 100
 D_LEARNING_RATE = 1e-5
 D_HIDDEN_UNITS = 10
 D_ADV_BATCH_SIZE = 50
-D_EPOCH_NUM_ADV = 5
+D_EPOCH_NUM_ADV = 3
 
 TOTAL_BATCH = 10
 
@@ -152,8 +153,9 @@ def main():
             	}
 
     index_to_word = pickle.load(open(ID_FILENAME))
-
-    G = Generator(G_hparams)
+    embedding_matrix = pickle.load(open(EMBED_FILENAME))
+    
+    G = Generator(G_hparams, embedding_matrix)
     D = Discriminator(D_hparams)
 
     X = pickle.load(open(X_FILENAME, 'rb'))
@@ -207,7 +209,8 @@ def main():
     G_losses = []
     beam_start = VOCAB_SIZE
     beam_rate = int((VOCAB_SIZE - BEAM_TARGET)/TOTAL_BATCH)
-    with tf.device('/device:GPU:0'):
+    #with tf.device('/device:GPU:0'):
+    with tf.device('/device:CPU:0'):
         for total_batch in range(TOTAL_BATCH):
             beam = beam_start - beam_rate*total_batch
             print "Total batch: %d" % total_batch
