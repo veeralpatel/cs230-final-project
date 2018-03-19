@@ -10,6 +10,7 @@ ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
 X_FILENAME = 'pickles/train_x_PUNC.pkl'
 Y_FILENAME = 'pickles/train_y_PUNC.pkl'
 EMBED_FILENAME = 'pickles/embedding_matrix.pkl'
+GENERATOR_OUTPUT_RESULTS = 'results/test_name_'
 
 #INITIAL DATA SPLITTING PARAMETERS
 POS_CUT_OFF = 288136
@@ -177,10 +178,19 @@ def main():
 
     print("Started pre-training G.")
     G.build_graph()
+
+    # Generate random text 
+    before_pretrain_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: VOCAB_SIZE})
+    pickle.dump(before_pretrain_sample,open(GENERATOR_OUTPUT_RESULTS+'before_pretrain.pkl', 'wb'))
+
     G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
     print("Finished training G. Started pre-training D.")
 
     samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_PRE_SAMPLE_SIZE, G.beam_width: VOCAB_SIZE})
+
+    # Generate text after pretraining 
+    after_pretrain_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: VOCAB_SIZE/2})
+    pickle.dump(after_pretrain_sample,open(GENERATOR_OUTPUT_RESULTS+'after_pretrain.pkl', 'wb'))
 
     #################################################################################
     #                         DISCRIMINATOR PRE-TRAINING                            #
@@ -250,6 +260,9 @@ def main():
             D_losses.append(loss)
             print "Done training D. D's Loss: %s" % str(loss)
 
+    # Generate samples after adversarial training
+    after_adv_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: beam})
+    pickle.dump(after_adv_sample,open(GENERATOR_OUTPUT_RESULTS+'after_adv.pkl', 'wb'))
 
     plt.subplot(1,2,1)
     plt.plot(np.squeeze(D_losses))
