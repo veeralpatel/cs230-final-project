@@ -9,15 +9,15 @@ from nn_tools import random_mini_batches
 ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
 X_FILENAME = 'pickles/train_x_PUNC.pkl'
 Y_FILENAME = 'pickles/train_y_PUNC.pkl'
-EMBED_FILENAME = 'pickles/embedding_matrix.pkl'
 GENERATOR_OUTPUT_RESULTS = 'results/test_name_'
+EMBED_FILENAME = 'embedding_matrix.pkl'
 
 #INITIAL DATA SPLITTING PARAMETERS
 POS_CUT_OFF = 288136
-ENTIRE_TRIM_SPLIT = 0.10
-PRE_POST_SPLIT = 0.33
+ENTIRE_TRIM_SPLIT = 0.40
+PRE_POST_SPLIT = 0.50
 
-GENERATOR_TRAIN_TEST_SPLIT = 0.95
+GENERATOR_TRAIN_TEST_SPLIT = 0.99
 DISCRIMINATOR_TRAIN_TEST_SPLIT = 0.95
 
 #GENERATOR HYPERPARAMETERS
@@ -30,7 +30,7 @@ G_ROLLOUT_NUM = 16
 G_LEARNING_RATE = 1e-2
 G_PRE_BATCH_SIZE = 50
 G_PRE_SAMPLE_SIZE = 10000    #How many negative examples to pre-train D with
-G_ADV_SAMPLE_SIZE = 1000     #How many samples to train D with during adversarial training
+G_ADV_SAMPLE_SIZE = 500     #How many samples to train D with during adversarial training
 G_ADV_TEST_SIZE = 10        #How many samples to print every now and then
 VOCAB_SIZE = 5001
 BEAM_TARGET = 1000
@@ -38,14 +38,14 @@ BEAM_TARGET = 1000
 #DISCRIMINATOR HYPERPARAMETERS
 D_FILTER_SIZES = [1, 2, 3, 5, 8, 10, 15, 20]
 D_NUM_FILTERS = [10, 20, 20, 20, 20, 16, 16, 16]
-D_EPOCH_NUM = 50
+D_EPOCH_NUM = 100
 D_BATCH_SIZE= 100
 D_LEARNING_RATE = 1e-5
-D_HIDDEN_UNITS = 10
+D_HIDDEN_UNITS = 100
 D_ADV_BATCH_SIZE = 50
 D_EPOCH_NUM_ADV = 3
 
-TOTAL_BATCH = 20
+TOTAL_BATCH = 35
 
 def shuffle_data(X, Y):
 	m = X.shape[0]
@@ -154,9 +154,9 @@ def main():
             	}
 
     index_to_word = pickle.load(open(ID_FILENAME))
-   # embedding_matrix = pickle.load(open(EMBED_FILENAME))
+    embedding_matrix = pickle.load(open(EMBED_FILENAME))
     
-    G = Generator(G_hparams)
+    G = Generator(G_hparams, embedding_matrix)
     D = Discriminator(D_hparams)
 
     X = pickle.load(open(X_FILENAME, 'rb'))
@@ -219,13 +219,13 @@ def main():
     G_losses = []
     beam_start = VOCAB_SIZE
     beam_rate = int((VOCAB_SIZE - BEAM_TARGET)/(TOTAL_BATCH-1))
-    #with tf.device('/device:GPU:0'):
-    with tf.device('/device:CPU:0'):
+    with tf.device('/device:GPU:0'):
+    #with tf.device('/device:CPU:0'):
         for total_batch in range(TOTAL_BATCH):
             beam = beam_start - beam_rate*total_batch
             print "Total batch: %d" % total_batch
             # Train the generator for one step
-            for g in range(3):
+            for g in range(1):
                 samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE, G.beam_width: beam})
                 rewards = get_reward(samples, G_ROLLOUT_NUM, beam, D, G)
                 _, loss = G.sess.run([G_update, G_loss], feed_dict={G.X: samples, G.rewards: rewards})
@@ -241,9 +241,9 @@ def main():
             loss = 0.0
             X_train_full = []
             Y_train_full = []
-            for k in range(5):
+            pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
+            for k in range(3):
                 samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_ADV_SAMPLE_SIZE, G.beam_width: beam})
-                pos = gen_pos_batch(X_pos_adv, G_ADV_SAMPLE_SIZE)
                 X_train, Y_train = format_samples(pos, samples)
 
                 loss += 1./5 * D.train(X_train, Y_train, None, None, restart=False, report=False)
@@ -261,7 +261,7 @@ def main():
             print "Done training D. D's Loss: %s" % str(loss)
 
     # Generate samples after adversarial training
-    after_adv_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: beam})
+    after_adv_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: BEAM_TARGET})
     pickle.dump(after_adv_sample,open(GENERATOR_OUTPUT_RESULTS+'after_adv.pkl', 'wb'))
 
     plt.subplot(1,2,1)
