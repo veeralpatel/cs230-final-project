@@ -177,7 +177,7 @@ class Generator:
         grads_and_params = optimizer.compute_gradients(loss)
         (grads, params) = np.transpose(grads_and_params).tolist()
 
-        grads, _ = tf.clip_by_global_norm(grads, 10.0)
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
 
         return loss, optimizer.apply_gradients(zip(grads, params))
 

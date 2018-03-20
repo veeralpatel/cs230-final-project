@@ -1,7 +1,7 @@
 import pickle
 
 ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
-TEST_NAME = ''
+TEST_NAME = 'increase_pre_split_'
 OUTPUT_RANDOM = 'results/test_name_' + TEST_NAME + 'before_pretrain.pkl'
 OUTPUT_LSTM = 'results/test_name_' + TEST_NAME + 'after_pretrain.pkl'
 OUTPUT_GAN = 'results/test_name_' + TEST_NAME + 'after_adv.pkl'

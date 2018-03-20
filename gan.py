@@ -9,7 +9,7 @@ from nn_tools import random_mini_batches
 ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
 X_FILENAME = 'pickles/train_x_PUNC.pkl'
 Y_FILENAME = 'pickles/train_y_PUNC.pkl'
-GENERATOR_OUTPUT_RESULTS = 'results/test_name_no_beam_'
+GENERATOR_OUTPUT_RESULTS = 'results/test_name_normalization_'
 EMBED_FILENAME = 'embedding_matrix.pkl'
 
 #INITIAL DATA SPLITTING PARAMETERS
@@ -45,7 +45,7 @@ D_HIDDEN_UNITS = 100
 D_ADV_BATCH_SIZE = 50
 D_EPOCH_NUM_ADV = 3
 
-TOTAL_BATCH = 35
+TOTAL_BATCH = 20
 
 def shuffle_data(X, Y):
 	m = X.shape[0]
@@ -123,6 +123,7 @@ def get_reward(samples, rollout_num, beam, D, G):
             rewards[SEQ_LENGTH-1] += ypred
 
     rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
+    rewards = (rewards - np.mean(rewards, axis=1, keepdims=True)) / np.std(rewards, axis=1, keepdims=True)
     return rewards
 
 def main():
@@ -186,21 +187,22 @@ def main():
     G.train(G_X_train, G_Y_train, G_X_test, G_Y_test)
     print("Finished training G. Started pre-training D.")
 
-    samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_PRE_SAMPLE_SIZE, G.beam_width: VOCAB_SIZE})
-
     # Generate text after pretraining 
-    after_pretrain_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: VOCAB_SIZE/2})
+    after_pretrain_sample = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_X_train.shape[0], G.beam_width: VOCAB_SIZE})
     pickle.dump(after_pretrain_sample,open(GENERATOR_OUTPUT_RESULTS+'after_pretrain.pkl', 'wb'))
 
     #################################################################################
     #                         DISCRIMINATOR PRE-TRAINING                            #
     #################################################################################
 
-    D_X_train, D_Y_train = format_samples(X_pos_pre[:G_PRE_SAMPLE_SIZE], samples)
-    D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train, DISCRIMINATOR_TRAIN_TEST_SPLIT)
-
     D.build_graph()
-    D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
+    
+    for i in range(10):
+        print(i)
+        samples = G.sess.run(G.gen_examples, feed_dict={G.sample_size: G_PRE_SAMPLE_SIZE, G.beam_width: VOCAB_SIZE})
+        D_X_train, D_Y_train = format_samples(X_pos_pre[:G_PRE_SAMPLE_SIZE], samples)
+        D_X_train, D_X_test, D_Y_train, D_Y_test = split_data(D_X_train, D_Y_train, DISCRIMINATOR_TRAIN_TEST_SPLIT)
+        D.train(D_X_train, D_Y_train, D_X_test, D_Y_test, report=True)
     print("Finished training D")
 
 	#################################################################################
