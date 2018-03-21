@@ -9,7 +9,7 @@ from nn_tools import random_mini_batches
 ID_FILENAME = 'pickles/id_to_word_PUNC.pkl'
 X_FILENAME = 'pickles/train_x_PUNC.pkl'
 Y_FILENAME = 'pickles/train_y_PUNC.pkl'
-GENERATOR_OUTPUT_RESULTS = 'results/test_name_normalization_'
+GENERATOR_OUTPUT_RESULTS = 'results/test_name_normalization_more_epochs_'
 EMBED_FILENAME = 'embedding_matrix.pkl'
 
 #INITIAL DATA SPLITTING PARAMETERS
@@ -45,7 +45,7 @@ D_HIDDEN_UNITS = 100
 D_ADV_BATCH_SIZE = 50
 D_EPOCH_NUM_ADV = 3
 
-TOTAL_BATCH = 20
+TOTAL_BATCH = 35
 
 def shuffle_data(X, Y):
 	m = X.shape[0]

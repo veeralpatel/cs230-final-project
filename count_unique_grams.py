@@ -22,7 +22,7 @@ unique_bigrams_data = set(find_ngrams(data,2))
 unique_trigrams_data = set(find_ngrams(data,3))
 unique_quadgrams_data = set(find_ngrams(data,4))
 
-generated_text = pickle.load(open('results/test_name_train_D_more_after_adv.pkl', 'rb'))
+generated_text = pickle.load(open('results/test_name_normalization_more_epochs_after_adv.pkl', 'rb'))
 generated_text = generated_text.reshape(-1)
 
 unique_bigrams_model = set(find_ngrams(generated_text,2))
